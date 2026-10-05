@@ -1,0 +1,30 @@
+# Flash layout for the 16 MB flash of the XIAO ESP32-S3 Plus.
+#
+# A partition table divides the flash chip into named regions, the way a disk
+# is divided into partitions. The bootloader reads it to find the firmware.
+#
+# PATTERN: A/B firmware slots (how over-the-air updates stay safe).
+# There are TWO firmware regions, app0 and app1. An update is written into
+# the slot that is NOT running. Only after it is complete and verified does
+# the small `otadata` region get flipped to say "boot the other slot". If
+# power fails mid-update, or the new firmware does not start, the old one is
+# still intact in its slot. v0.1 does not do OTA yet, but the layout must
+# exist from the first flash: changing it later means re-flashing over USB.
+#
+#   nvs       settings: Wi-Fi credentials, server address (key-value store)
+#   otadata   which app slot to boot
+#   app0/app1 two firmware slots, 3 MB each
+#   ffat      FAT filesystem, reserved for the offline screen cache
+#             (9.875 MB holds about 200 screens of 48 kB)
+#   coredump  crash dump storage, for debugging a device that reset itself
+#
+# Offsets must be gap-free and the last partition must end at 0x1000000
+# (16 MB). App partitions must start on a 64 kB (0x10000) boundary.
+#
+# Name,     Type, SubType,  Offset,   Size
+nvs,        data, nvs,      0x9000,   0x5000
+otadata,    data, ota,      0xe000,   0x2000
+app0,       app,  ota_0,    0x10000,  0x300000
+app1,       app,  ota_1,    0x310000, 0x300000
+ffat,       data, fat,      0x610000, 0x9E0000
+coredump,   data, coredump, 0xFF0000, 0x10000

@@ -1,0 +1,96 @@
+# Continuous integration: every push to main and every pull request is
+# checked automatically by GitHub, on a clean machine.
+#
+# WHY: "it works on my computer" is not evidence. A clean machine has no
+# leftover files, no locally installed libraries and no secrets.h, so if
+# these jobs pass, the repository really contains everything needed.
+#
+# The four jobs run in parallel and each answers one question.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Read-only access to the repository is all these jobs need.
+permissions:
+  contents: read
+
+jobs:
+  host-tests:
+    name: Unit tests (host)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: cmake -S firmware/tests/host -B build/host-tests
+      - name: Build
+        run: cmake --build build/host-tests
+      - name: Run
+        run: ctest --test-dir build/host-tests --output-on-failure
+
+  format:
+    name: Formatting
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check clang-format
+        # --dry-run changes nothing; --Werror makes any difference a failure.
+        # The version is pinned (18) because different clang-format versions
+        # format slightly differently.
+        run: |
+          find firmware/src firmware/tests firmware/include \( -name '*.h' -o -name '*.cpp' \) \
+            | xargs clang-format-18 --dry-run --Werror
+
+  static-analysis:
+    name: Static analysis (cppcheck)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install cppcheck
+        # The PyPI package bundles a fixed cppcheck release (2.17.1), so the
+        # result does not depend on what the runner image happens to ship.
+        run: pip install cppcheck==1.5.1
+      - name: Analyse the hardware-independent code
+        run: |
+          cppcheck --std=c++17 \
+            --enable=warning,style,performance,portability \
+            --error-exitcode=1 --inline-suppr \
+            --suppress=missingIncludeSystem \
+            -I firmware/src firmware/src/pure firmware/src/app
+
+  firmware:
+    name: Firmware build
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history and tags, so `git describe` can compute the version.
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Cache PlatformIO downloads
+        # The toolchain is several hundred megabytes. The cache key contains
+        # a hash of platformio.ini, so changing a pinned version refreshes it.
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: platformio-${{ runner.os }}-${{ hashFiles('firmware/platformio.ini') }}
+      - name: Install PlatformIO
+        run: pip install platformio
+      - name: Build
+        working-directory: firmware
+        run: pio run -e xiao-epaper
+      - name: Keep the binary
+        # Downloadable from the workflow run page. Built without secrets.h,
+        # so it contains no credentials.
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: firmware/.pio/build/xiao-epaper/firmware.bin
+          if-no-files-found: error

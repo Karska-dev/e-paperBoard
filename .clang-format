@@ -1,0 +1,15 @@
+# Code formatting rules, applied by the tool clang-format.
+# Formatting is decided by a tool so that it is never a topic in review:
+# run `clang-format -i <files>` (or let the editor do it on save) and move on.
+# CI checks that committed code matches these rules.
+BasedOnStyle: Google
+IndentWidth: 4
+ColumnLimit: 120
+AccessModifierOffset: -2
+PointerAlignment: Left
+DerivePointerAlignment: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+SpacesBeforeTrailingComments: 2
+IncludeBlocks: Preserve

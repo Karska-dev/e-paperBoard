@@ -1,0 +1,9 @@
+# Line endings. Windows ends lines with CR+LF, macOS and Linux with LF.
+# "text=auto eol=lf" stores and checks out text files with LF everywhere, so
+# the same file never shows up as "changed on every line" between machines.
+* text=auto eol=lf
+
+# Binary files: never touch their bytes, never try to show a text diff.
+*.bin binary
+*.png binary
+*.jpg binary

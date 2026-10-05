@@ -1,0 +1,30 @@
+# Files git should never track. Three kinds: secrets, things a tool can
+# regenerate, and files that belong to one person's machine.
+
+# --- Secrets -----------------------------------------------------------------
+# Wi-Fi password and server address for development builds.
+firmware/include/secrets.h
+
+# --- Generated ---------------------------------------------------------------
+# PlatformIO build output and downloaded libraries
+.pio/
+# Firmware version header, rewritten on every build by scripts/git_version.py
+firmware/include/fw_version.h
+# Host test builds (cmake -B build/...)
+build/
+# Python bytecode from the build script
+__pycache__/
+*.pyc
+
+# --- Local only ------------------------------------------------------------
+# Personal working notes and local git hooks. They belong to one person's
+# way of working, not to the project.
+CLAUDE.local.md
+.githooks/
+
+# --- Editors and operating systems -------------------------------------------
+.DS_Store
+.vscode/
+.idea/
+*.swp
+compile_commands.json
