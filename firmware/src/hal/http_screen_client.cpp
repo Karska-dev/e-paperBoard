@@ -14,24 +14,20 @@ namespace epb {
 
 namespace {
 
-// Copies a response header into a fixed buffer. If the value does not fit
-// it is dropped completely (empty string) and never cut short: half an ETag
-// or half a date is worse than none.
+// Copies a response header into a fixed buffer. A value that does not fit is
+// dropped, never cut short: half an ETag is worse than none.
 void copyHeader(HTTPClient& http, const char* name, char* out, size_t capacity) {
     out[0] = '\0';
     const String value = http.header(name);
     if (value.length() > 0 && value.length() < capacity) {
-        std::memcpy(out, value.c_str(), value.length() + 1);  // +1 copies the final zero too.
+        std::memcpy(out, value.c_str(), value.length() + 1);  // +1 copies the final zero.
     }
 }
 
 // Reads exactly `capacity` bytes of body into `out`.
-//
-// PATTERN: stall timeout.
-// A download can take long without anything being wrong (weak signal), so a
-// limit on the TOTAL time would be a guess. What signals trouble is silence:
-// the timer restarts whenever bytes arrive, and we give up only after
-// kHttpStallTimeoutMs with no progress at all.
+// PATTERN: stall timeout. A slow download is fine (weak signal); silence is
+// not. The timer restarts whenever bytes arrive, and we give up only after
+// kHttpStallTimeoutMs without progress.
 bool readBody(HTTPClient& http, uint8_t* out, size_t capacity) {
     Stream* stream = http.getStreamPtr();
     size_t received = 0;
@@ -60,8 +56,7 @@ FetchResult HttpScreenClient::fetch(const char* url, const char* etag, uint8_t* 
     FetchResult result = {};
     result.status = FetchStatus::TransportError;  // Until proven otherwise.
 
-    // v0.1 speaks plain http only. https needs a TLS client and a
-    // certificate store; that arrives together with OTA updates.
+    // v0.1 speaks plain http only. https needs a TLS client and certificates.
     WiFiClient transport;
     HTTPClient http;
     http.setConnectTimeout(static_cast<int32_t>(config::kHttpConnectTimeoutMs));
@@ -71,7 +66,7 @@ FetchResult HttpScreenClient::fetch(const char* url, const char* etag, uint8_t* 
         return result;
     }
 
-    // The Arduino HTTP client throws response headers away unless it is told
+    // The Arduino HTTP client drops response headers unless it is told
     // beforehand which ones to keep.
     static const char* kWantedHeaders[] = {"ETag", "Date", "X-Next-Wake"};
     http.collectHeaders(kWantedHeaders, sizeof(kWantedHeaders) / sizeof(kWantedHeaders[0]));
@@ -90,19 +85,16 @@ FetchResult HttpScreenClient::fetch(const char* url, const char* etag, uint8_t* 
     result.httpCode = code;
     copyHeader(http, "ETag", result.etag, sizeof(result.etag));
     copyHeader(http, "Date", result.date, sizeof(result.date));
-    // strtoul gives 0 for a missing or non-numeric header, which the sleep
-    // planner reads as "no hint".
+    // strtoul gives 0 for a missing or non-numeric header: "no hint".
     result.nextWakeSeconds = static_cast<uint32_t>(std::strtoul(http.header("X-Next-Wake").c_str(), nullptr, 10));
 
     if (code == HTTP_CODE_NOT_MODIFIED) {
         result.status = FetchStatus::NotModified;
     } else if (code == HTTP_CODE_OK) {
-        // PATTERN: validate before you pay.
-        // The server must announce the body size (Content-Length). If it is
-        // not exactly one frame we reject the response before downloading a
-        // single byte of it. getSize() is -1 when the header is missing
-        // (for example with chunked transfer encoding, which this simple
-        // reader does not decode).
+        // PATTERN: validate before you pay. The server must announce the body
+        // size (Content-Length). If it is not exactly one frame we reject the
+        // response without downloading a byte. getSize() is -1 when the header
+        // is missing (chunked encoding, which this reader does not decode).
         const int declared = http.getSize();
         if (declared != static_cast<int>(frameCapacity)) {
             logf("http: body is %d bytes, expected %u", declared, static_cast<unsigned>(frameCapacity));

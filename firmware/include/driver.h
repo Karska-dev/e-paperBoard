@@ -1,14 +1,11 @@
-// Display configuration for the Seeed_GFX library.
-//
-// Seeed_GFX supports dozens of board and panel combinations. It finds out
-// which one to build for by including a file called "driver.h" from the
-// project. These two lines were confirmed on our unit on 2026-10-05 with
-// Seeed's HelloWorld example.
+// Display configuration for Seeed_GFX. The library includes this file by
+// name to learn which board and panel to build for. Both lines are confirmed
+// on our unit.
 #pragma once
 
-// 502 = 7.5 inch monochrome ePaper, 800 x 480, UC8179 controller.
+// 502 = 7.5" monochrome ePaper, 800 x 480, UC8179 controller.
 #define BOARD_SCREEN_COMBO 502
 
-// The driver board in the TRMNL 7.5" (OG) DIY kit: XIAO ePaper Display
-// Board EE04. Selects the right SPI and control pins inside the library.
+// The driver board of the TRMNL 7.5" (OG) DIY kit. Selects the SPI and
+// control pins.
 #define USE_XIAO_EPAPER_DISPLAY_BOARD_EE04

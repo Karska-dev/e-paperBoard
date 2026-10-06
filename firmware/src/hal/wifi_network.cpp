@@ -12,16 +12,15 @@ namespace epb {
 
 namespace {
 
-// PATTERN: polling with a deadline.
-// WiFi.begin() only STARTS the connection; it finishes in the background.
-// So we ask "connected yet?" in a loop and give up after a time limit. Every
-// wait on the outside world in this firmware has such a limit: a device that
-// waits forever with the radio on has a flat battery by morning.
+// PATTERN: polling with a deadline. WiFi.begin() only STARTS the connect, so
+// we ask "connected yet?" in a loop and give up after a limit. Every wait on
+// the outside world has one: waiting forever with the radio on means a flat
+// battery by morning.
 bool waitUntilConnected(uint32_t timeoutMs) {
     const uint32_t start = millis();
-    // `millis() - start` stays correct even when millis() overflows and
-    // wraps back to 0 (after 49 days): unsigned subtraction wraps the same
-    // way. Comparing `millis() < start + timeout` would break at the wrap.
+    // TECHNIQUE: wrap-safe elapsed time. `millis() - start` stays correct when
+    // millis() overflows to 0 (after 49 days), because unsigned subtraction
+    // wraps the same way. `millis() < start + timeout` would break.
     while (millis() - start < timeoutMs) {
         if (WiFi.status() == WL_CONNECTED) {
             return true;
@@ -35,20 +34,17 @@ bool waitUntilConnected(uint32_t timeoutMs) {
 
 bool WifiNetwork::connect(const Settings& settings, WifiHint* hint) {
     // By default the Arduino core saves the credentials to flash on every
-    // WiFi.begin(). We keep them in our own settings store, so switch that
-    // off: no hidden flash writes on every wake.
+    // WiFi.begin(). We keep our own, so switch that off: no hidden flash writes.
     WiFi.persistent(false);
-    WiFi.mode(WIFI_STA);  // Station = a client of an access point.
+    WiFi.mode(WIFI_STA);  // Station = client of an access point.
 
     // An open network has no password; the API wants a null pointer then.
     const char* password = settings.password[0] != '\0' ? settings.password : nullptr;
 
-    // PATTERN: fast path with fallback.
-    // A normal connect scans all 13 channels for the network name first,
-    // which takes most of the connect time. If we remember which channel and
-    // which access point (BSSID) we used last time, we can go straight
-    // there. If that fails (router restarted on another channel, device
-    // moved) we forget the hint and take the slow, always-correct path.
+    // PATTERN: fast path with fallback. A normal connect scans all channels,
+    // which takes most of the time. With the remembered channel and access
+    // point (BSSID) we go straight there. If that fails (the router changed
+    // channel) we drop the hint and take the slow path that always works.
     if (hint->valid != 0) {
         WiFi.begin(settings.ssid, password, hint->channel, hint->bssid, true);
         if (waitUntilConnected(config::kWifiFastConnectMs)) {

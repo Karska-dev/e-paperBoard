@@ -31,16 +31,15 @@ size_t buildScreenUrl(char* out, size_t capacity, const char* serverUrl, const S
         return 0;
     }
 
-    // Accept the base URL with or without a trailing slash, so that
-    // "http://host:8080" and "http://host:8080/" both work.
+    // Accept the base URL with or without a trailing slash.
     size_t baseLength = std::strlen(serverUrl);
     while (baseLength > 0 && serverUrl[baseLength - 1] == '/') {
         --baseLength;
     }
 
-    // snprintf never writes more than `capacity` bytes and returns the length
-    // the full text WOULD have had. Comparing the two detects truncation.
-    // "%.*s" prints at most `baseLength` characters of serverUrl.
+    // snprintf writes at most `capacity` bytes and returns the length the full
+    // text WOULD have had; comparing the two detects truncation.
+    // "%.*s" prints at most `baseLength` characters.
     const int written =
         std::snprintf(out, capacity, "%.*s/screen?id=%s&bat_mv=%u&bat_pct=%u&low=%u&fw=%s&wake=%s",
                       static_cast<int>(baseLength), serverUrl, request.screenId,

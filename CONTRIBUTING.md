@@ -1,46 +1,63 @@
 # Contributing
 
-How changes get into this repository. Short version: small changes, explained in comments, tested, reviewed before they are merged.
+How a change gets into this repository: small, named well, tested, reviewed.
 
-For building, flashing and testing see [OPERATIONS.md](OPERATIONS.md).
-
-## A teaching project
-
-Code here is written to be read by someone who is learning. That shapes how comments are written; see [Comments teach](#comments-teach).
+Building, flashing and testing: [OPERATIONS.md](OPERATIONS.md).
 
 ## Workflow
 
-### Before v0.1
+Until v0.1 work goes straight to `main`. From v0.1 on, every change follows the same path:
 
-Work is committed directly to `main`. The goal of this phase is a skeleton that runs on the hardware.
-
-### From v0.1 on
-
-Every change follows the same path:
-
+```mermaid
+gitGraph
+    commit id: "release" tag: "v0.1.0"
+    branch "feature/12-improv-setup"
+    commit id: "feat: ..."
+    commit id: "test: ..."
+    checkout main
+    merge "feature/12-improv-setup"
+    branch "fix/17-button-false-wake"
+    commit id: "fix: ..."
+    checkout main
+    merge "fix/17-button-false-wake" tag: "v0.2.0"
 ```
-issue  ──▶  branch  ──▶  commits  ──▶  pull request  ──▶  review  ──▶  merge to main
-```
 
-1. **Open an issue** that describes the bug or the feature. Templates are provided. Discussing the "what" before writing the "how" saves rework.
-2. **Create a branch** from an up-to-date `main`, named after the issue:
+| Step | What | Why |
+| --- | --- | --- |
+| 1. Issue | Describe the bug or feature (templates provided) | Agree on the "what" before writing the "how" |
+| 2. Branch | From an up-to-date `main`, named after the issue | `main` only ever holds reviewed, working code |
+| 3. Commits | Small steps that each build and pass the tests | Easy to review, easy to undo |
+| 4. Pull request | Into `main`; write `Closes #12` to link the issue | The record of what changed and how it was tested |
+| 5. Review | CI green, owner approves | A second pair of eyes |
+| 6. Merge | Then delete the branch | |
 
-   | Kind | Branch name | Example |
-   | --- | --- | --- |
-   | Feature | `feature/<issue>-<short-name>` | `feature/12-improv-provisioning` |
-   | Bug fix | `fix/<issue>-<short-name>` | `fix/17-button-false-wake` |
-   | Docs, tooling | `chore/<issue>-<short-name>` | `chore/21-ci-cache` |
+## Names
 
-3. **Commit** in small steps that each build and pass the tests.
-4. **Open a pull request** into `main`. Fill in the template and link the issue with `Closes #12` so it closes automatically on merge.
-5. **Review.** CI must be green and the owner approves.
-6. **Merge**, then delete the branch.
+A good name removes the need for a comment. One convention per kind of thing:
 
-Why this much process for a small project: each step leaves a record. The issue says why, the pull request says what and how it was tested, and `main` only ever contains reviewed, working code.
+| Thing | Convention | Example |
+| --- | --- | --- |
+| Function | `camelCase`, starts with a verb | `planSleepSeconds()`, `buildScreenUrl()` |
+| Variable, field | `camelCase` noun | `wakeCount`, `shownScreen` |
+| Yes/no value or function | Reads as a statement | `isRtcStateValid()`, `lowBattery`, `cycleSucceeded` |
+| Number with a unit | Unit as suffix | `timeoutMs`, `sleepSeconds`, `kLowBatteryOnPercent` |
+| Type (`struct`, `class`, `enum class`) | `PascalCase` noun | `RtcState`, `NavAction` |
+| Interface (port) | `I` + what the app needs | `IDisplay`, `IScreenClient` |
+| Adapter, fake | Named after the technology; `Fake` + port | `EpaperDisplay`, `FakeDisplay` |
+| Constant | `k` + `PascalCase` | `kFrameBytes`, `kPinKey1` |
+| Global (rare) | `g_` prefix | `g_frame` |
+| Macro, build flag | `EPB_` + `UPPER_CASE` | `EPB_SERVER_URL` |
+| Namespace | lower case | `epb`, `epb::config` |
+| File | `snake_case`, named after the idea; `.h` + `.cpp` pair | `sleep_plan.h`, `sleep_plan.cpp` |
+| Test file | `test_<topic>.cpp` | `test_battery_math.cpp` |
+| Test | A sentence that states the expected behaviour | `http_date_rejects_malformed_input` |
+| Branch | `<kind>/<issue>-<short-name>`; kind is `feature`, `fix` or `chore` | `fix/17-button-false-wake` |
+| Commit | `<type>: <what changed>`, see below | `fix: keep old screen when download fails` |
+| Version tag | `vMAJOR.MINOR.PATCH` ([Semantic Versioning](https://semver.org)) | `v0.1.0` |
 
-## Commit messages
+### Commit messages
 
-[Conventional Commits](https://www.conventionalcommits.org) format:
+[Conventional Commits](https://www.conventionalcommits.org):
 
 ```
 <type>: <what changed, in the imperative, no full stop>
@@ -48,71 +65,84 @@ Why this much process for a small project: each step leaves a record. The issue 
 <optional body: why, and anything a reader of the history should know>
 ```
 
-| Type | For |
-| --- | --- |
-| `feat` | A new capability |
-| `fix` | A bug fix |
-| `docs` | Documentation only |
-| `test` | Tests only |
-| `refactor` | Restructuring without behaviour change |
-| `build` | Build system, dependencies, CI |
-| `chore` | Everything else |
-
-Examples: `feat: wake on button press`, `fix: keep old screen when download fails`.
+| Type | For | Type | For |
+| --- | --- | --- | --- |
+| `feat` | A new capability | `refactor` | Restructuring, same behaviour |
+| `fix` | A bug fix | `build` | Build system, dependencies, CI |
+| `docs` | Documentation only | `chore` | Everything else |
+| `test` | Tests only | | |
 
 ## Code rules
 
 ### Layers
 
+```mermaid
+flowchart TD
+    main["main.cpp"] --> hal["hal/ · storage/"] --> app["app/"] --> pure["pure/"]
+    main --> app
+```
+
+An arrow means "may include". Arrows only point down.
+
 | Folder | May include | Must not include |
 | --- | --- | --- |
-| `firmware/src/pure/` | C++ standard library, other `pure/` headers | anything else |
-| `firmware/src/app/` | `pure/`, other `app/` headers | Arduino, ESP-IDF, `hal/`, `storage/` |
-| `firmware/src/hal/`, `storage/` | Arduino, ESP-IDF, `app/`, `pure/` | each other, unless there is a good reason |
-| `firmware/src/main.cpp` | everything | |
+| `pure/` | C++ standard library, other `pure/` headers | anything else |
+| `app/` | `pure/`, other `app/` headers | Arduino, ESP-IDF, `hal/`, `storage/` |
+| `hal/`, `storage/` | Arduino, ESP-IDF, `app/`, `pure/` | each other, unless there is a good reason |
+| `main.cpp` | everything | |
 
-Rule of thumb: **if it is a decision, it belongs in `pure/` or `app/`; if it touches a pin, it belongs in `hal/`.** New hardware gets a new interface in `app/ports.h`, a real adapter in `hal/`, and a fake in `tests/host/fakes.h`.
+**A decision belongs in `pure/` or `app/`. Anything that touches a pin belongs in `hal/`.** New hardware gets an interface in `app/ports.h`, an adapter in `hal/` and a fake in `tests/host/fakes.h`.
 
-The host test build enforces the first two rows: it compiles only `pure/` and `app/`, without any Arduino headers available.
+The host test build enforces the first two rows: it compiles `pure/` and `app/` with no Arduino headers available.
 
-### Style
+### Rules, and why
 
-- C++17. Formatting is done by `clang-format` with the rules in `.clang-format`. Do not format by hand:
+| Rule | Why |
+| --- | --- |
+| One function, one job | It can be named, tested and reused |
+| No bare numbers in logic; name them in `config.h` or next to their use | The name says what, the comment says why that value |
+| GPIO numbers only in `hal/board.h` | One place to change when the hardware changes |
+| Every wait on the outside world has a timeout | A hang with the radio on empties the battery |
+| Failure is reported through the return value; no exceptions, no RTTI | Smaller binary, visible error paths |
+| No heap allocation in the wake cycle | Memory use is known at build time |
+| Check data where it enters or leaves the program | Inner code can trust its inputs |
+| Let the compiler check: `constexpr`, `static_assert`, warnings as errors | A mistake found at build time costs nothing |
+| No secrets in the repository; `secrets.h` stays ignored by git | History cannot be unpublished |
+| C++17, formatted by `clang-format`, never by hand | Formatting is not a review topic |
 
-  ```sh
-  find firmware/src firmware/tests firmware/include \( -name '*.h' -o -name '*.cpp' \) | xargs clang-format -i
-  ```
+```sh
+find firmware/src firmware/tests firmware/include \( -name '*.h' -o -name '*.cpp' \) | xargs clang-format -i
+```
 
-- Names: `camelCase` functions and variables, `PascalCase` types, `kPascalCase` constants, `g_` prefix for the rare global, `I` prefix for interfaces.
-- No exceptions, no RTTI, no heap allocation in the wake cycle. Functions report failure through their return value.
-- Every wait on the outside world has a timeout.
-- No bare numbers in logic. Give them a name in `config.h` or next to their use.
-- No GPIO numbers outside `hal/board.h`.
-- No secrets in the repository. `secrets.h` is ignored by git; keep it that way.
+### Comments teach, briefly
 
-### Comments teach
+This code is written to be read by someone who is learning.
 
-Comments explain **why**, and name the idea being used, so a learner can look it up. When you apply a pattern or an algorithm:
+1. Mark an idea where it is used: `PATTERN:`, `ALGORITHM:` or `TECHNIQUE:`, its name, what it is, why here. Two to four lines.
+2. Add a row to [docs/PATTERNS.md](docs/PATTERNS.md) if it is new.
+3. Explain an idea once; elsewhere, point to that place.
+4. A small diagram beats a paragraph.
+5. Do not narrate the code (`i++  // increase i`). Do write down the reason, the trap, and what was learned the hard way on the hardware.
 
-1. Mark it at the place of use with a `PATTERN:` or `ALGORITHM:` comment: what it is, and why it is the right tool here.
-2. Add a row to [docs/PATTERNS.md](docs/PATTERNS.md) if it is not listed yet.
-
-Do not narrate what the code plainly says (`i++  // increase i`). Do write down anything that was surprising, non-obvious, or learned the hard way on the hardware.
+```cpp
+// PATTERN: hysteresis. Two thresholds stop the flag from flickering when the
+// battery hovers around one value. In between, it keeps its previous value.
+//
+//   percent:  0 ...... 8 | 9  10  11 | 12 ...... 100
+//   flag:        low     |   keep    |    not low
+```
 
 ## Tests
 
-- Every change to `pure/` or `app/` comes with tests in `firmware/tests/host/`.
+- A change to `pure/` or `app/` comes with tests in `firmware/tests/host/`.
 - A bug fix starts with a test that fails because of the bug.
-- Hardware behaviour that cannot be unit tested is checked on the board; say what you checked in the pull request.
+- What cannot be unit tested is checked on the board; say what you checked in the pull request.
 
 Before asking for review:
 
 ```sh
-# unit tests
 cmake -S firmware/tests/host -B build/host-tests && cmake --build build/host-tests
 ctest --test-dir build/host-tests --output-on-failure
-
-# firmware still builds
 (cd firmware && pio run)
 ```
 
@@ -128,6 +158,6 @@ ctest --test-dir build/host-tests --output-on-failure
 
 ## Third-party code and licenses
 
-This project is released under the [MIT license](LICENSE). By contributing you agree that your contribution is released under the same license.
+The project is [MIT licensed](LICENSE); contributions are released under the same license.
 
-Do not copy code from other projects into this repository without checking its license first. Some of the projects this one learned from are GPL-licensed or have no license at all. Ideas and hardware facts are free to use; code is not. When in doubt, write it yourself and credit the inspiration in the README.
+Do not copy code from other projects without checking its license. Some projects this one learned from are GPL-licensed or have no license. Ideas and hardware facts are free to use; code is not. When in doubt, write it yourself and credit the inspiration in the README.

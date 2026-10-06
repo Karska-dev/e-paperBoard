@@ -106,9 +106,8 @@ TEST(failure_ignores_the_server_hint) {
 // ----------------------------------------------------------------- RTC state
 
 TEST(crc32_matches_the_standard_check_value) {
-    // Every CRC-32 implementation must give 0xCBF43926 for the text
-    // "123456789". Comparing against a published value like this is how you
-    // know an algorithm is implemented correctly, not just consistently.
+    // KNOWN-ANSWER TEST: every CRC-32 must give 0xCBF43926 for "123456789".
+    // A published value shows the algorithm is correct, not just consistent.
     CHECK(crc32(reinterpret_cast<const uint8_t*>("123456789"), 9) == 0xCBF43926u);
     CHECK(crc32(nullptr, 0) == 0u);
 }

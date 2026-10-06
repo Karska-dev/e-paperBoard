@@ -6,9 +6,8 @@ namespace epb {
 
 namespace {
 
-// Reads exactly `digits` decimal digits at `p`. Returns false if any of the
-// characters is not a digit. Hand-written instead of sscanf() so that the
-// parser is strict: "5 Oct" or "+5" must be rejected, not half-accepted.
+// Reads exactly `digits` digits at `p`. Hand-written, not sscanf(), so the
+// parser stays strict: "5 Oct" or "+5" is rejected, not half-accepted.
 bool readNumber(const char* p, int digits, uint32_t* out) {
     uint32_t value = 0;
     for (int i = 0; i < digits; ++i) {
@@ -42,17 +41,15 @@ uint32_t daysInMonth(int32_t year, uint32_t month) {
 }  // namespace
 
 int64_t daysFromCivil(int32_t year, uint32_t month, uint32_t day) {
-    // The trick: pretend the year starts on 1 March. Then the leap day is the
-    // LAST day of the year and never shifts the days that come after it.
-    // January and February therefore belong to the previous "March year".
+    // Trick: let the year start on 1 March. The leap day is then the LAST day
+    // of the year and never shifts the days after it.
     year -= (month <= 2) ? 1 : 0;
 
     // The calendar repeats exactly every 400 years (an "era" of 146,097 days).
     const int32_t era = (year >= 0 ? year : year - 399) / 400;
     const uint32_t yearOfEra = static_cast<uint32_t>(year - era * 400);  // 0..399
 
-    // Day of the March-based year. (153 * m + 2) / 5 is a compact formula for
-    // "days before month m" given the 31,30,31,30,31 pattern of month lengths.
+    // (153 * m + 2) / 5 = days before month m, for the 31,30,31,30,31 pattern.
     const uint32_t marchMonth = month > 2 ? month - 3 : month + 9;  // Mar = 0 .. Feb = 11
     const uint32_t dayOfYear = (153 * marchMonth + 2) / 5 + day - 1;
 
@@ -71,8 +68,7 @@ bool parseHttpDate(const char* text, int64_t* epochSeconds) {
     if (text == nullptr || epochSeconds == nullptr || std::strlen(text) != kLength) {
         return false;
     }
-    // Check the fixed punctuation first. The weekday name (first 3 letters)
-    // is ignored: it is redundant and we do not need it.
+    // Fixed punctuation first. The weekday name is redundant and ignored.
     if (text[3] != ',' || text[4] != ' ' || text[7] != ' ' || text[11] != ' ' || text[16] != ' ' || text[19] != ':' ||
         text[22] != ':' || std::strcmp(text + 25, " GMT") != 0) {
         return false;

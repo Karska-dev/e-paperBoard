@@ -1,5 +1,5 @@
-// The firmware's definition of logf(): print to the USB serial port.
-// (The host tests link a different definition, see src/app/log.h.)
+// The firmware's logf(): prints to the USB serial port.
+// (The host tests link another definition, see app/log.h.)
 #include <Arduino.h>
 
 #include <cstdarg>
@@ -10,8 +10,8 @@
 namespace epb {
 
 void logf(const char* format, ...) {
-    // Format into a fixed buffer on the stack. No heap allocation, and
-    // vsnprintf cannot write past the end: an overlong line is cut short.
+    // Fixed buffer on the stack: no heap, and vsnprintf cannot write past the
+    // end (an overlong line is cut short).
     char line[192];
 
     // va_list is how C reads a variable number of arguments ("...").
@@ -20,8 +20,8 @@ void logf(const char* format, ...) {
     vsnprintf(line, sizeof(line), format, args);
     va_end(args);
 
-    // millis() = milliseconds since this wake started. Prefixing it turns
-    // the log into a timing profile of the wake cycle for free.
+    // millis() = time since this wake began, so the log doubles as a timing
+    // profile of the cycle.
     Serial.printf("[%6lu ms] %s\n", static_cast<unsigned long>(millis()), line);
 }
 

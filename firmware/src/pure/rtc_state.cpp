@@ -5,15 +5,14 @@
 namespace epb {
 
 uint32_t crc32(const uint8_t* data, size_t length) {
-    // 0xEDB88320 is the standard CRC-32 polynomial, written bit-reversed
-    // because this implementation works from the lowest bit upwards.
+    // 0xEDB88320: the standard CRC-32 polynomial, bit-reversed because we work
+    // from the lowest bit upwards.
     uint32_t crc = 0xFFFFFFFFu;
     for (size_t i = 0; i < length; ++i) {
         crc ^= data[i];
         for (int bit = 0; bit < 8; ++bit) {
-            // If the lowest bit is set, shift and "subtract" (XOR) the
-            // polynomial; otherwise just shift. That is one step of binary
-            // long division.
+            // One step of binary long division: shift, and if the bit that fell out
+            // was set, XOR the polynomial in.
             const uint32_t lowBitSet = crc & 1u;
             crc >>= 1;
             if (lowBitSet != 0) {

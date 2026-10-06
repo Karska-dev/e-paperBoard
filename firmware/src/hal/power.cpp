@@ -18,45 +18,39 @@ uint32_t g_awakeLimitSleepSeconds = 0;
 
 // Programs the wake-up sources and powers down.
 [[noreturn]] void enterDeepSleep(uint32_t seconds) {
-    // BACKGROUND: in deep sleep the main part of the chip is unpowered,
-    // including the normal GPIO circuitry and its pull-up resistors. A small
-    // always-on island, the "RTC domain", keeps running: a timer, a few
-    // kilobytes of memory, and its own access to some pins. Only this island
-    // can wake the chip, so the buttons have to be handed over to it.
+    // In deep sleep the main part of the chip is off, including the normal GPIO
+    // circuitry and its pull-ups. Only a small always-on island, the "RTC
+    // domain" (a timer, a little memory, access to some pins), can wake the
+    // chip, so the keys are handed over to it.
     for (size_t i = 0; i < board::kButtonCount; ++i) {
         const gpio_num_t pin = static_cast<gpio_num_t>(board::kButtons[i].gpio);
-        // The keys connect the pin to ground when pressed. Without a pull-up
-        // an open key leaves the pin floating; it would pick up noise and
-        // wake the chip at random. The RTC domain has its own pull-ups.
+        // Without a pull-up an open key leaves the pin floating: it would pick
+        // up noise and wake the chip at random.
         rtc_gpio_pullup_en(pin);
         rtc_gpio_pulldown_dis(pin);
     }
-    // Keep the RTC peripherals powered so those pull-ups stay active.
-    // This costs a little sleep current. The chip can also "hold" the pull-up
-    // setting with the peripherals off; that is an optimisation to try once
-    // sleep current is measured on the real board. Make it work first.
+    // Keep the RTC peripherals powered so the pull-ups stay active. That costs
+    // a little sleep current; the chip can also "hold" the setting with them
+    // off. Try that once sleep current is measured. Make it work first.
     esp_sleep_pd_config(ESP_PD_DOMAIN_RTC_PERIPH, ESP_PD_OPTION_ON);
 
-    // Wake source 1: any of the three keys going low ("ext1" can watch
-    // several pins at once; "ext0" only one).
-    // The call fails if a pin in the mask cannot be used from the RTC domain.
-    // We still go to sleep then (the timer will wake us), but say so loudly:
-    // silently losing the buttons would be a miserable bug to track down.
+    // Wake source 1: any key going low ("ext1" watches several pins, "ext0"
+    // one). If the call fails we still sleep (the timer will wake us), but
+    // say so loudly: silently losing the keys would be miserable to debug.
     const uint64_t wakeMask = wakeMaskFor(board::kButtons, board::kButtonCount);
     if (esp_sleep_enable_ext1_wakeup_io(wakeMask, ESP_EXT1_WAKEUP_ANY_LOW) != ESP_OK) {
         logf("ERROR: button wake-up could not be enabled; only the timer will wake the board");
     }
 
-    // Wake source 2: the RTC timer. The API takes microseconds; the
-    // multiplication must happen in 64 bits (ULL) or anything above 71
-    // minutes would overflow.
+    // Wake source 2: the RTC timer, in microseconds. Multiply in 64 bits
+    // (ULL), or anything above 71 minutes overflows.
     esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(seconds) * 1000000ULL);
 
-    Serial.flush();  // Let the last log line out before the lights go off.
+    Serial.flush();  // Let the last log line out.
     esp_deep_sleep_start();
 
-    // esp_deep_sleep_start() does not return. The compiler cannot know that
-    // for certain, and this function promises [[noreturn]], so:
+    // esp_deep_sleep_start() does not return, but the compiler cannot know
+    // that, and this function promises [[noreturn]].
     while (true) {
     }
 }
@@ -74,7 +68,7 @@ WakeInfo readWakeInfo() {
         case ESP_SLEEP_WAKEUP_TIMER:
             return {WakeCause::Timer, 0};
         case ESP_SLEEP_WAKEUP_EXT1:
-            // A 64-bit mask with one bit per GPIO that caused the wake.
+            // One bit per GPIO that caused the wake.
             return {WakeCause::Button, esp_sleep_get_ext1_wakeup_status()};
         default:
             // Power-on, reset button, fresh flash, or a crash restart.
@@ -85,8 +79,8 @@ WakeInfo readWakeInfo() {
 void releaseButtonPins() {
     for (size_t i = 0; i < board::kButtonCount; ++i) {
         const uint8_t pin = board::kButtons[i].gpio;
-        // While asleep the pin belonged to the RTC domain. deinit returns it
-        // to the normal GPIO circuitry, where digitalRead() works.
+        // While asleep the pin belonged to the RTC domain; deinit returns it to
+        // the normal GPIO circuitry, where digitalRead() works.
         rtc_gpio_deinit(static_cast<gpio_num_t>(pin));
         pinMode(pin, INPUT_PULLUP);
     }
@@ -106,9 +100,8 @@ void armAwakeLimit(uint32_t maxAwakeSeconds, uint32_t thenSleepSeconds) {
 }
 
 void deepSleepFor(uint32_t seconds) {
-    // The keys wake the chip while they are LOW. If the user is still
-    // holding one, the chip would wake again the instant it falls asleep.
-    // So wait for all keys to be released, but not forever.
+    // The keys wake the chip while LOW. A key still held would wake it again
+    // at once, so wait for release, but not forever.
     const uint32_t start = millis();
     while (millis() - start < config::kButtonReleaseWaitMs) {
         bool anyKeyDown = false;

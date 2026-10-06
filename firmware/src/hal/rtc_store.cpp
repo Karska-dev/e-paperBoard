@@ -8,19 +8,14 @@ namespace epb {
 
 namespace {
 
-// RTC_DATA_ATTR tells the linker to place this variable in RTC slow memory,
-// the small RAM that stays powered during deep sleep. It behaves like a
-// normal global, except that it still holds its value after a wake.
+// RTC_DATA_ATTR places this variable in RTC memory, the small RAM that stays
+// powered in deep sleep: a normal global that keeps its value across a wake.
 //
-// What happens on the OTHER kinds of start (power-on, reset button, fresh
-// flash, crash)? The startup code re-initialises RTC_DATA_ATTR variables
-// then, here to all zeros. Zeros fail the magic-number check, so the first
-// load after such a start returns clean defaults. That is the main job of
-// the validation today. Its second job is protection against corruption
-// during sleep (a brown-out on a nearly empty battery). And it becomes
-// essential if this is ever changed to RTC_NOINIT_ATTR, which keeps data
-// across resets and firmware updates too: then stale data from an older
-// layout really can be sitting here, and the version field catches it.
+// On every OTHER start (power-on, reset, fresh flash, crash) the startup code
+// resets it to zeros. Zeros fail the magic check, so the first load returns
+// clean defaults: that is the validation's main job today. It also catches
+// corruption during sleep (brown-out), and it becomes essential with
+// RTC_NOINIT_ATTR, which keeps data across resets and firmware updates.
 RTC_DATA_ATTR RtcState g_stored;
 
 }  // namespace

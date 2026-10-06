@@ -1,7 +1,5 @@
 // Buttons: from "which pin woke the chip" to "what did the user mean".
-//
-// LAYER: pure (no hardware headers), so the decoding is unit tested on a
-// laptop. The actual pin numbers live in src/hal/board.h.
+// LAYER: pure. The pin numbers live in hal/board.h.
 #pragma once
 
 #include <cstddef>
@@ -9,8 +7,7 @@
 
 namespace epb {
 
-// What a button press means to the application. The rest of the firmware
-// only ever sees these values, never GPIO numbers.
+// What a press means. The rest of the firmware sees these, never GPIO numbers.
 enum class NavAction : uint8_t {
     None,  // Not a button wake (timer or power-on).
     Prev,
@@ -18,30 +15,24 @@ enum class NavAction : uint8_t {
     Next,
 };
 
-// PATTERN: table-driven mapping.
-// One row per physical button: which GPIO it is wired to and what it means.
-// Instead of scattering "if pin == 3" checks through the code, the whole
-// assignment of keys to actions is one small table (see kButtons in
-// src/hal/board.h). Changing the layout means editing one line of data, not
-// logic.
+// PATTERN: table-driven mapping. One row per key (GPIO, meaning) replaces
+// "if pin == 3" checks scattered through the code. A new layout is a data
+// edit in hal/board.h, not a logic change.
 struct ButtonPin {
     uint8_t gpio;
     NavAction action;
 };
 
-// ALGORITHM: bit mask.
-// The chip reports "which pins woke me" as a 64-bit number in which bit N
-// stands for GPIO N. Example: GPIO 3 pressed gives the mask 0b1000 (1 << 3).
-// This builds the mask that has one bit set for each button in the table,
-// which is what the sleep code hands to the chip as "wake me on any of these".
+// ALGORITHM: bit mask. A set of pins in one number: bit N stands for GPIO N,
+// so GPIO 3 is 0b1000 (1 << 3). Returns the mask of all keys in the table,
+// which the chip takes as "wake me on any of these".
 uint64_t wakeMaskFor(const ButtonPin* table, size_t count);
 
-// Translates the wake mask back into an action. If two buttons were down at
-// once, the one that comes FIRST in the table wins, so the table order is
-// also the priority order.
+// Mask -> action. If several keys are down, the first table row wins, so
+// table order is priority order.
 NavAction decodeWakeMask(uint64_t wakeMask, const ButtonPin* table, size_t count);
 
-// Short lowercase name for logs and for the request sent to the server.
+// Lowercase name for logs and for the server request.
 const char* navActionName(NavAction action);
 
 }  // namespace epb

@@ -1,8 +1,11 @@
 # Operations
 
-How to build, test, flash, run and release the firmware. Commands are for macOS; Linux is the same apart from the package manager.
+How to build, test, flash, run and release the firmware. Commands are for macOS; Linux differs only in the package manager.
 
-## Contents
+```mermaid
+flowchart LR
+    install["1 Install tools"] --> tests["2 Unit tests"] --> secrets["3 Wi-Fi and server"] --> flash["4 Build and flash"] --> first["5 First run"] --> release["7 Release"]
+```
 
 1. [Install the tools](#1-install-the-tools)
 2. [Run the unit tests](#2-run-the-unit-tests)
@@ -16,34 +19,29 @@ How to build, test, flash, run and release the firmware. Commands are for macOS;
 
 ## 1. Install the tools
 
-Only PlatformIO is required to build and flash. It needs Python 3.10 to 3.14 (`python3 --version` shows yours). Its installer puts everything into your home folder and needs no administrator rights:
+Only PlatformIO is required. It needs Python 3.10 to 3.14 (`python3 --version`). Its installer works in your home folder, without administrator rights:
 
 ```sh
 cd ~
 curl -fsSL -o get-platformio.py https://raw.githubusercontent.com/platformio/platformio-core-installer/master/get-platformio.py
 python3 get-platformio.py
-echo 'export PATH="$HOME/.platformio/penv/bin:$PATH"' >> ~/.zshrc
+echo 'export PATH="$HOME/.platformio/penv/bin:$PATH"' >> ~/.zshrc   # so every new Terminal finds `pio`
 source ~/.zshrc
 pio --version
 ```
 
-The `echo` line adds PlatformIO's folder to the `PATH`, the list of places the shell searches for commands, so that `pio` is found in every new Terminal window. `get-platformio.py` can be deleted afterwards.
-
-If macOS says `python3` or `git` needs the "command line developer tools", accept the installation (or run `xcode-select --install`). Those tools come from Apple and also contain the C++ compiler used for the unit tests.
-
-If you use [Homebrew](https://brew.sh), this does the same and adds the optional tools: `brew install platformio cmake clang-format`.
+- If macOS asks to install the "command line developer tools", accept (or run `xcode-select --install`). They bring `git` and the C++ compiler.
+- With [Homebrew](https://brew.sh): `brew install platformio cmake clang-format` does the same and adds the optional tools.
 
 | Tool | Needed | Used for |
 | --- | --- | --- |
-| PlatformIO Core (`pio`) | yes | Building and flashing the firmware. Downloads the compiler and libraries on first use. |
-| git | yes | PlatformIO fetches the display library with it; the firmware version comes from it. |
+| PlatformIO Core (`pio`) | yes | Build and flash. Downloads compiler and libraries on first use. |
+| git | yes | Fetches the display library; supplies the firmware version. |
 | C++ compiler (`c++`) | for unit tests | Part of Apple's command line developer tools. |
-| CMake | optional | The standard way to build the unit tests. Section 2 also shows a way without it. |
-| clang-format | optional | Formatting the code, only needed when you change it. |
+| CMake | optional | The standard way to build the unit tests. |
+| clang-format | optional | Formatting, when you change code. |
 
-If you prefer an editor: install VS Code with the PlatformIO IDE extension and open the **`firmware/`** folder (not the repository root), because that is where `platformio.ini` is.
-
-The Arduino IDE is not used for this firmware. It remains handy for small one-off test sketches.
+Editor: VS Code with the PlatformIO IDE extension. Open the **`firmware/`** folder, where `platformio.ini` is. The Arduino IDE is not used for this firmware.
 
 ## 2. Run the unit tests
 
@@ -55,9 +53,9 @@ cmake --build build/host-tests
 ctest --test-dir build/host-tests --output-on-failure
 ```
 
-To see each test by name, run the program directly: `./build/host-tests/host_tests`.
+`./build/host-tests/host_tests` lists each test by name.
 
-Without CMake, one compiler command builds the same tests (without the extra warnings and sanitizers):
+Without CMake (no extra warnings, no sanitizers):
 
 ```sh
 c++ -std=c++17 -Ifirmware/src -Ifirmware/tests/host \
@@ -65,26 +63,26 @@ c++ -std=c++17 -Ifirmware/src -Ifirmware/tests/host \
     -o /tmp/host_tests && /tmp/host_tests
 ```
 
-The tests are built with sanitizers (extra run-time checks for memory errors). If your compiler does not support them, add `-DEPB_SANITIZE=OFF` to the first command.
+Sanitizers are run-time checks for memory errors. If your compiler lacks them, add `-DEPB_SANITIZE=OFF` to the first command.
 
 ## 3. Configure Wi-Fi and server
 
-The firmware needs three settings: Wi-Fi name, Wi-Fi password and the address of the server. Until proper setup exists they are compiled in from a file that git ignores:
+Three settings: Wi-Fi name, Wi-Fi password, server address. Until proper setup exists they are compiled in from a file that git ignores:
 
 ```sh
 cd firmware
-cp include/secrets.example.h include/secrets.h
+cp include/secrets.example.h include/secrets.h    # then edit it
 ```
 
-Edit `include/secrets.h`. On its next start the board copies the values into its settings storage.
+On its next start the board copies the values into its settings storage.
 
-- `secrets.h` is in `.gitignore`. Check with `git status` that it never shows up.
-- A firmware file built with `secrets.h` contains your Wi-Fi password. Do not share such a `.bin`.
-- Without `secrets.h` the firmware builds fine and shows "Setup needed" on the panel.
+- `git status` must never show `secrets.h`.
+- A firmware `.bin` built with `secrets.h` contains your Wi-Fi password. Do not share it.
+- Without `secrets.h` the firmware builds and shows "Setup needed".
 
 ## 4. Build, flash and watch the log
 
-All commands from the `firmware/` folder.
+From the `firmware/` folder:
 
 | Goal | Command |
 | --- | --- |
@@ -92,127 +90,146 @@ All commands from the `firmware/` folder.
 | Build and flash | `pio run -t upload` |
 | Watch the serial log | `pio device monitor` |
 | Flash, then watch | `pio run -t upload -t monitor` |
-| Debug build (waits 2 s at each wake so the log is complete) | `pio run -e xiao-epaper-debug -t upload -t monitor` |
-| Erase everything, including stored settings | `pio run -t erase` |
+| Debug build: waits 2 s at each wake so the log is complete | `pio run -e xiao-epaper-debug -t upload -t monitor` |
+| Erase everything, stored settings included | `pio run -t erase` |
 | Delete build output | `pio run -t clean` |
 
-The first build downloads the toolchain and takes several minutes. Later builds take seconds.
+The first build downloads the toolchain and takes minutes. Later builds take seconds.
 
-**Upload tips**
+**When the upload cannot connect.** A sleeping board has no USB connection.
 
-- The right serial port is the one that appears only when the board is plugged in. PlatformIO usually finds it by itself.
-- If no port appears, or the upload cannot connect: hold the **BOOT** button while plugging in the USB cable. This is also the way in when the firmware is asleep, because a sleeping board has no USB connection.
-- "Hard resetting via RTS pin" is the normal last line of a successful upload.
-- Use a USB-C cable that carries data. Many charge-only cables look identical.
+```mermaid
+flowchart TD
+    port{"ls /dev/cu.usbmodem*<br/>lists a port?"}
+    port -->|yes| named["pio run -t upload<br/>--upload-port /dev/cu.usbmodem*"]
+    port -->|no| boot["Hold BOOT, press reset, release BOOT"] --> port
+    named --> ok["'Hard resetting via RTS pin'<br/>= upload succeeded"]
+    ok --> reset["If BOOT was used: press reset<br/>once to start the firmware"]
+```
 
-**Reading the log**
+- **BOOT** is the tiny button on the XIAO module, next to the USB-C socket.
+- Use a USB-C cable that carries data. Charge-only cables look the same.
 
-Each line starts with the milliseconds since the wake began, so the log doubles as a timing profile:
+**Reading the log.** Each line starts with the milliseconds since the wake began, so the log is also a timing profile:
 
 ```
 [  2012 ms] e-paperBoard firmware v0.1.0
 [  2040 ms] wake #1: reason=boot screen=home battery=3940 mV (68%)
-[  3310 ms] wifi: connected, ip=192.168.1.57 rssi=-58 dBm
-[  7950 ms] drew screen 'home'
+[  3310 ms] wifi: connected, ip=192.168.1.57 rssi=-58 dBm        1.3 s to join Wi-Fi
+[  7950 ms] drew screen 'home'                                    4.6 s for download + refresh
 [  7951 ms] sleeping for 1800 s
 ```
 
-(Illustrative: the numbers will differ.) The board disconnects from USB when it sleeps and reconnects when it wakes; the serial monitor reconnects by itself.
+(Illustrative numbers.) The board leaves USB when it sleeps and returns when it wakes; the monitor reconnects by itself.
 
 ## 5. First run on the hardware
 
-A sensible order for the first session with a new board, or after a change to the hardware layer:
+For a new board, or after a change to the hardware layer:
 
 1. Run the unit tests (section 2).
-2. Start the test server on a computer in the same Wi-Fi network: `python3 tools/test_server.py` (from the repository root). It prints its address. If macOS asks whether Python may accept incoming connections, allow it.
-3. Put that address into `secrets.h` as `EPB_SERVER_URL`.
+2. Start the test server on a computer in the same Wi-Fi network: `python3 tools/test_server.py`. Allow incoming connections if macOS asks.
+3. Put the address it prints into `secrets.h` as `EPB_SERVER_URL`.
 4. Flash the debug build and watch the log.
 
-What to check, in order:
+The test image, and what each mark proves:
+
+```
++------------------------------+    frame        all 800 x 480 pixels arrive
+| #                            |    # corner     orientation: must be top-left
+|                              |    row of N     which screen: home = 1, next = 2, ...
+|   [] [] []                   |    white        colours are not inverted
++------------------------------+
+```
 
 | Check | Expected |
 | --- | --- |
-| Boot | A version line and a `wake #1` line with a plausible battery voltage. |
-| Wi-Fi | `wifi: connected`. |
-| Download and draw | The test image on the panel: black frame, a square in the top-left corner, one square in the middle. Then `sleeping for 120 s`. |
-| Timer wake | About two minutes later a new `wake` line with `reason=timer`, then `screen unchanged (304)` and no flash on the panel. |
-| Buttons | Each key wakes the board; the log shows `reason=prev`, `home` or `next`. Left is home, middle is next, right is prev. The number of squares on the panel changes with the screen. |
-| Fast reconnect | From the second wake on: `wifi: fast connect on channel N`. |
-| Failure handling | Stop the test server, press a key: `cycle failed`, the old image stays, retry in 60 s, then 120 s. |
-| On battery | Set the on-off switch to on, unplug USB and press a key: the board must behave the same with no computer attached. |
-| No settings | Erase the board, flash a build without `secrets.h`: "Setup needed" appears once. |
+| Boot | A version line, then `wake #1` with a plausible battery voltage |
+| Wi-Fi | `wifi: connected` |
+| Download and draw | The test image with one square in the row, then `sleeping for 120 s` |
+| Timer wake | Two minutes later: `reason=timer`, `screen unchanged (304)`, no flash on the panel |
+| Keys | Left `reason=home`, middle `next`, right `prev`; the number of squares changes |
+| Fast reconnect | From the second wake: `wifi: fast connect on channel N` |
+| Failure handling | Stop the server, press a key: `cycle failed`, old image stays, retry in 60 s, then 120 s |
+| On battery | On-off switch on, USB unplugged, press a key: same behaviour |
+| No settings | Erase the board, flash a build without `secrets.h`: "Setup needed" appears once |
 
 Write down what does not match. Those findings are the work list for v0.1.
 
 ## 6. Putting the repository on GitHub
 
 ```sh
-# 1. First commit, locally.
 git add -A
-git status                      # read the list: secrets.h and .pio/ must NOT be in it
+git status                      # secrets.h and .pio/ must NOT be in the list
 git commit -m "feat: firmware skeleton"
 
-# 2. Connect to the GitHub repository.
 git remote add origin git@github.com:<user>/e-paperBoard.git
 git fetch origin
 
-# 3. Only if the GitHub repository already has commits (a README or license
-#    created on the website): merge them in.
+# Only if the GitHub repository already has commits (a README made on the website).
+# The two histories share no commit, so git wants to be told the merge is intended.
 git merge origin/main --allow-unrelated-histories
 
-# 4. Push and remember the upstream branch.
-git push -u origin main
+git push -u origin main         # -u: remember the upstream branch
 ```
 
-`--allow-unrelated-histories` is needed in step 3 because the two repositories were started separately and share no common commit. Git refuses to merge such histories unless told it is intended.
-
-After the first push, check the **Actions** tab on GitHub: the CI workflow runs for the first time there.
+Then check the **Actions** tab on GitHub: the CI workflow runs there for the first time.
 
 ## 7. Releasing a version
 
 Versions follow [Semantic Versioning](https://semver.org): `vMAJOR.MINOR.PATCH`. "v0.1" is the tag `v0.1.0`.
 
-1. Everything for the release is merged and CI is green.
-2. The first-run checklist (section 5) passes on the board.
-3. Update `CHANGELOG.md`: rename "Unreleased" to the version and date, start a new empty "Unreleased".
-4. Commit.
-5. Tag and push:
+```mermaid
+flowchart LR
+    ci["CI green on main"] --> board["First-run checklist<br/>passes on the board"] --> log["CHANGELOG: 'Unreleased'<br/>becomes version + date"] --> commit["Commit"] --> tag["Tag and push"]
+```
 
-   ```sh
-   git tag -a v0.1.0 -m "v0.1.0"
-   git push origin main --follow-tags
-   ```
+```sh
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin main --follow-tags
+```
 
-The firmware picks its version up from the tag: a build made exactly at the tag reports `v0.1.0`; three commits later it reports `v0.1.0-3-g<commit>`.
+The firmware takes its version from the tag: built exactly at the tag it reports `v0.1.0`; three commits later, `v0.1.0-3-g<commit>`.
 
 ## 8. Updating a pinned dependency
 
-All versions are fixed in `firmware/platformio.ini`. To update one:
+All versions are fixed in `firmware/platformio.ini`.
 
-1. Change the version (the platform URL or the library commit hash).
+1. Change the version (platform URL or library commit hash).
 2. `pio run -t clean`, then `pio run`.
-3. Re-run the first-run checklist on the board, at least the display and sleep parts.
+3. Repeat the first-run checklist, at least display and sleep.
 4. Note the update in `CHANGELOG.md`.
 
 ## 9. Troubleshooting
 
-| Symptom | Likely cause and fix |
+**Upload and serial port**
+
+| Symptom | Cause and fix |
 | --- | --- |
-| Upload tries a port that is not the board (for example a Bluetooth device such as `/dev/cu.SomeHeadphones`) and ends with "No serial data received" | PlatformIO found no USB port for the board and fell back to another serial port. Check with `ls /dev/cu.usbmodem*`. If nothing is listed, hold BOOT while plugging in. Then name the port yourself: `pio run -t upload --upload-port /dev/cu.usbmodem*`. |
-| Upload succeeds after using BOOT, but the board does nothing | A board put into download mode with the BOOT button stays there. Press the reset button once (or unplug and replug) to start the firmware. |
-| Everything works on USB, but the board is dead once the cable is unplugged | The on-off switch is off. It connects the battery; on USB the board runs without it. |
-| No serial port, upload cannot connect | The board is asleep or the cable is charge-only. Hold BOOT while plugging in; try another cable. |
+| Upload tries a port that is not the board (such as `/dev/cu.SomeHeadphones`), then "No serial data received" | No USB port for the board was found, so PlatformIO picked another one. Follow the diagram in section 4. |
+| No serial port at all | The board is asleep, or the cable is charge-only. BOOT sequence; another cable. |
+| Upload succeeded after BOOT, but nothing happens | The board is still in download mode. Press reset once. |
 | Log starts in the middle or is empty | USB reconnects after each wake and early lines are lost. Use the `xiao-epaper-debug` build. |
-| Panel stays blank after "drew screen" | Ribbon cable not seated. Power off before touching it. |
-| Link error `undefined reference to EPaper::...` | The display library was built without `driver.h`. `-I include` must be in `build_flags` in `platformio.ini`. |
+
+**Build**
+
+| Symptom | Cause and fix |
+| --- | --- |
+| `ERROR: Python version must be ...` | The ESP32 platform supports Python 3.10 to 3.14. |
+| The same error, only at "Looking for upload port" | An older ESP32 platform is still installed and rejects your Python. Delete its folder in `~/.platformio/platforms/`. |
+| `undefined reference to EPaper::...` | The display library was built without `driver.h`. `-I include` must be in `build_flags`. |
+| "program size is greater than maximum" | The firmware outgrew its 3 MB slot (`partitions.csv`). |
+| Unit tests: sanitizer errors while building | Configure with `-DEPB_SANITIZE=OFF`. |
+| Unit tests: build stops on a warning | Your compiler knows a newer warning. Configure with `-DEPB_WERROR=OFF` and report it. |
+
+**On the board**
+
+| Symptom | Cause and fix |
+| --- | --- |
+| Works on USB, dead when unplugged | The on-off switch is off. It connects the battery. |
 | "Setup needed" on the panel | No settings stored. Create `secrets.h` (section 3) and flash again. |
-| `wifi: could not join` | Wrong name or password, or a 5 GHz-only network. The ESP32 only speaks 2.4 GHz. |
-| `http: body is -1 bytes` | The server sent no `Content-Length`. It must (see the server contract). |
-| `http: request failed (connection refused)` | Wrong address or port, the server is not running, or the computer's firewall blocks it. |
-| Board wakes immediately after sleeping, over and over | A key is stuck or its pin is floating. Check the log's `reason=`; see the pull-up notes in `hal/power.cpp`. |
-| `AWAKE LIMIT reached` in the log | Something hung for 90 s. The lines before it show where. |
-| `ERROR: Python version must be ...` | The ESP32 platform supports Python 3.10 to 3.14. Install one of those and run the PlatformIO installer again with it. |
-| The same Python error, but only at "Looking for upload port" | An older ESP32 platform release is still installed. PlatformIO loads every installed platform while it searches for the port, and the old one rejects your Python. Look in `~/.platformio/platforms/` and delete the folder of the old release. |
-| Build fails with "program size is greater than maximum" | The firmware outgrew its 3 MB slot (`partitions.csv`). |
-| Unit tests fail to build with sanitizer errors | Configure with `-DEPB_SANITIZE=OFF`. |
-| Unit tests fail to build because of a warning | Your compiler knows a warning this code has not met. Configure with `-DEPB_WERROR=OFF` to run the tests, and report the warning. |
+| `wifi: could not join` | Wrong name or password, or a 5 GHz-only network. The ESP32 speaks 2.4 GHz only. |
+| `http: request failed (connection refused)` | Wrong address or port, server not running, or a firewall on the computer. |
+| `http: body is -1 bytes` | The server sent no `Content-Length`. It must. |
+| Panel stays blank after "drew screen" | Ribbon cable not seated. Power off before touching it. |
+| Wakes again right after sleeping, over and over | A key is stuck or its pin floats. Check `reason=` in the log; see the pull-up notes in `hal/power.cpp`. |
+| `AWAKE LIMIT reached` | Something hung for 90 s. The lines before it show where. |

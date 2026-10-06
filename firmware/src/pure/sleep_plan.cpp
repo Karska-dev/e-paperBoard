@@ -20,10 +20,9 @@ uint32_t planSleepSeconds(bool cycleSucceeded, uint8_t consecutiveFailures, uint
         return clampTo(wanted, config.minSeconds, config.maxSeconds);
     }
 
-    // base * 2^(failures - 1), computed by doubling in a loop that stops as
-    // soon as the cap is reached. Stopping early matters: doubling a 32-bit
-    // number 40 times would overflow and wrap around to a tiny value, which
-    // would turn "wait longer" into "retry immediately".
+    // base * 2^(failures - 1), by doubling. The loop stops at the cap: doubling
+    // a 32-bit number 40 times would overflow and wrap to a tiny value, turning
+    // "wait longer" into "retry at once".
     uint32_t wait = config.backoffBaseSeconds;
     for (uint8_t i = 1; i < consecutiveFailures && wait < config.backoffMaxSeconds; ++i) {
         wait *= 2;

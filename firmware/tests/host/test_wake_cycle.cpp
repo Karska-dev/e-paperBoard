@@ -1,9 +1,7 @@
 // Tests for the whole wake cycle, run against fake hardware.
-//
-// These are the most valuable tests in the project: they exercise the real
-// application logic (the same wake_cycle.cpp that runs on the board) through
-// situations that are slow or awkward to produce on a desk: Wi-Fi down,
-// server confused, tenth failure in a row.
+// The most valuable tests here: the real wake_cycle.cpp, driven through
+// situations that are awkward to produce on a desk (Wi-Fi down, confused
+// server, tenth failure in a row).
 #include <cstring>
 
 #include "app/wake_cycle.h"
@@ -18,10 +16,9 @@ using namespace epb::test;
 
 namespace {
 
-// PATTERN: test fixture.
-// Every test needs the same set-up: six fakes, a config, a frame buffer.
-// Building it once in a struct keeps each test down to the three lines that
-// make it different (arrange, act, assert).
+// PATTERN: test fixture. The shared set-up (six fakes, a config, a buffer)
+// lives in one struct, so each test shows only what makes it different:
+// arrange, act, assert.
 struct Rig {
     FakeSettings settings;
     FakeBattery battery;
@@ -47,11 +44,9 @@ struct Rig {
 const WakeInfo kPowerOn = {WakeCause::PowerOn, 0};
 const WakeInfo kTimer = {WakeCause::Timer, 0};
 
-// Builds the wake info for "the key that means `action` was pressed".
-// The pin is looked up in the real board table, so these tests do not repeat
-// which key does what: if the layout in hal/board.h changes, they still test
-// the same behaviour. (Tests that copy configuration break for the wrong
-// reason; the layout itself is pinned down once, in test_navigation.cpp.)
+// Wake info for "the key that means `action` was pressed". The pin comes
+// from the real board table: tests that copy configuration break for the
+// wrong reason. The layout itself is pinned down in test_navigation.cpp.
 WakeInfo pressed(NavAction action) {
     for (size_t i = 0; i < board::kButtonCount; ++i) {
         if (board::kButtons[i].action == action) {

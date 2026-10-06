@@ -5,8 +5,8 @@ namespace epb {
 uint64_t wakeMaskFor(const ButtonPin* table, size_t count) {
     uint64_t mask = 0;
     for (size_t i = 0; i < count; ++i) {
-        // 1ULL, not 1: a plain `1` is a 32-bit int, and shifting it by 32 or
-        // more is undefined behaviour. A classic embedded bug.
+        // 1ULL, not 1: a plain `1` is a 32-bit int, and shifting it by 32 or more
+        // is undefined behaviour.
         mask |= (1ULL << table[i].gpio);
     }
     return mask;

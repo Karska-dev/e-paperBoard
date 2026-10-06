@@ -1,12 +1,11 @@
-// Entry point of the host test program, plus the test build's version of
-// logf() (see the "link seam" note in src/app/log.h).
+// Entry point of the host tests, plus their version of logf() (the link
+// seam described in app/log.h).
 #include "app/log.h"
 #include "mini_test.h"
 
 namespace epb {
 
-// The firmware prints log lines to the serial port. In tests they would only
-// clutter the output, so this version swallows them.
+// The tests swallow the log lines the firmware would print.
 void logf(const char* /*format*/, ...) {}
 
 }  // namespace epb

@@ -6,9 +6,9 @@
 
 #include "app/log.h"
 
-// __has_include asks the compiler "does this file exist?" without failing
-// when it does not. That makes secrets.h truly optional: present on a
-// developer's machine, absent in a fresh clone and in CI.
+// __has_include asks "does this file exist?" without failing if it does
+// not. So secrets.h is truly optional: present on a developer's machine,
+// absent in a fresh clone and in CI.
 #if __has_include("secrets.h")
 #include "secrets.h"
 #define EPB_HAS_DEV_SECRETS 1
@@ -20,8 +20,8 @@ namespace epb {
 
 namespace {
 
-// NVS groups keys into namespaces so different parts of a program cannot
-// overwrite each other's values. Names are limited to 15 characters.
+// NVS groups keys into namespaces, so parts of a program cannot overwrite
+// each other's values. Names are limited to 15 characters.
 constexpr const char* kNamespace = "epb";
 constexpr const char* kKeySsid = "ssid";
 constexpr const char* kKeyPassword = "pass";
@@ -39,8 +39,8 @@ void readString(Preferences& prefs, const char* key, char* out, size_t capacity)
 void NvsSettings::load(Settings* out) {
     *out = {};
     Preferences prefs;
-    // `true` opens the namespace read-only. It fails if nothing was ever
-    // stored, which simply leaves all settings empty.
+    // `true` = read-only. Fails if nothing was ever stored, which simply
+    // leaves all settings empty.
     if (prefs.begin(kNamespace, true)) {
         readString(prefs, kKeySsid, out->ssid, sizeof(out->ssid));
         readString(prefs, kKeyPassword, out->password, sizeof(out->password));
@@ -62,8 +62,8 @@ void NvsSettings::save(const Settings& settings) {
 void NvsSettings::applyDevSecrets() {
 #if EPB_HAS_DEV_SECRETS
     Settings wanted = {};
-    // strncpy with capacity - 1 leaves the last byte as the zero that the
-    // `= {}` above put there, so the result is always terminated.
+    // strncpy with capacity - 1 keeps the last byte as the zero that `= {}`
+    // put there, so the result is always terminated.
     std::strncpy(wanted.ssid, EPB_WIFI_SSID, sizeof(wanted.ssid) - 1);
     std::strncpy(wanted.password, EPB_WIFI_PASSWORD, sizeof(wanted.password) - 1);
     std::strncpy(wanted.serverUrl, EPB_SERVER_URL, sizeof(wanted.serverUrl) - 1);
@@ -71,8 +71,8 @@ void NvsSettings::applyDevSecrets() {
     Settings stored = {};
     load(&stored);
 
-    // Write only when something changed: this runs on every wake, and a
-    // flash write on every wake is exactly what NVS is not meant for.
+    // PATTERN: conditional write. This runs on every wake, and a flash write
+    // on every wake is what NVS is not meant for: write only on change.
     if (std::memcmp(&wanted, &stored, sizeof(Settings)) != 0) {
         save(wanted);
         logf("settings: stored development values from secrets.h");

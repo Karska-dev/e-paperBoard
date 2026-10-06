@@ -6,25 +6,27 @@
 
 namespace epb {
 
-// HOW THE CIRCUIT WORKS: a full Li-ion cell is 4.2 V, more than the ADC pin
-// may see. Two equal resistors in series (a voltage divider) halve it. But a
-// divider connected all the time would leak current around the clock, so
-// the board puts a switch in front of it. GPIO6 HIGH closes the switch.
+// The circuit (simplified). A full cell is 4.2 V, too much for the ADC pin,
+// so two equal resistors halve it. A switch disconnects the divider when it
+// is not in use, so it does not leak current around the clock.
+//
+//   battery + --[switch, GPIO6]--[ R ]--+--[ R ]-- GND
+//                                       |
+//                                 GPIO1 (ADC): half the battery voltage
 void BatteryAdc::sample(uint16_t* out, size_t count) {
     pinMode(board::kPinBatteryEnable, OUTPUT);
     analogReadResolution(12);  // Readings from 0 to 4095.
 
     digitalWrite(board::kPinBatteryEnable, HIGH);
-    delay(12);  // Let the voltage settle after the switch closes.
+    delay(12);  // Let the voltage settle.
 
-    // The first conversions after a pause tend to be off (the ADC's sampling
-    // capacitor has to charge to the new level), so two are thrown away.
+    // The first conversions after a pause tend to be off; throw two away.
     analogRead(board::kPinBatteryAdc);
     analogRead(board::kPinBatteryAdc);
 
     for (size_t i = 0; i < count; ++i) {
         out[i] = static_cast<uint16_t>(analogRead(board::kPinBatteryAdc));
-        delay(2);  // Spread the samples out so they do not all catch the same noise burst.
+        delay(2);  // Spread the samples over time.
     }
 
     digitalWrite(board::kPinBatteryEnable, LOW);  // Divider off again.

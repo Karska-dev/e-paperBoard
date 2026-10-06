@@ -1,17 +1,14 @@
-// The image format the server sends and the panel shows.
-//
+// The image format: what the server sends and the panel shows.
 // LAYER: pure.
 //
-// FORMAT: raw 1-bit bitmap, no header, no compression.
-//   - 800 x 480 pixels, one bit per pixel
-//   - rows top to bottom, pixels left to right
-//   - 8 pixels per byte, the leftmost pixel is the HIGHEST bit (MSB first)
-//   - bit 1 = white, bit 0 = black
-//   - total size: 800 * 480 / 8 = 48,000 bytes, always
+// Raw 1-bit bitmap, 800 x 480, no header: always exactly 48,000 bytes.
 //
-// Why raw instead of PNG: the device needs no decoder and no decode memory,
-// and "is this a valid image" becomes one comparison (is it exactly 48,000
-// bytes?). The server does the hard work of rendering and dithering.
+//    byte 0            byte 1             bit 1 = white, bit 0 = black
+//   [7 6 5 4 3 2 1 0] [7 6 5 4 3 2 1 0] ...
+//    ^ pixel x = 0     ^ pixel x = 8      rows top to bottom, 100 bytes each
+//
+// Why raw and not PNG: no decoder, no decode memory, and "is it valid?" is
+// one size comparison. The server does the rendering and dithering.
 #pragma once
 
 #include <cstddef>
@@ -23,9 +20,8 @@ inline constexpr uint16_t kFrameWidth = 800;
 inline constexpr uint16_t kFrameHeight = 480;
 inline constexpr size_t kFrameBytes = static_cast<size_t>(kFrameWidth) * kFrameHeight / 8;
 
-// `constexpr` + `static_assert`: the compiler does the arithmetic and refuses
-// to build if someone changes a dimension so that the numbers stop agreeing.
-// A check at compile time costs nothing at run time.
+// TECHNIQUE: compile-time check. The build fails if these numbers ever stop
+// agreeing, and the check costs nothing at run time.
 static_assert(kFrameBytes == 48000, "frame size must match the server contract");
 static_assert(kFrameWidth % 8 == 0, "rows must be whole bytes");
 

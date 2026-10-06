@@ -49,8 +49,8 @@ TEST(percent_interpolates_between_points) {
 }
 
 TEST(percent_never_decreases_as_voltage_rises) {
-    // A property test: instead of checking single values, check a rule that
-    // must hold for EVERY input. Catches table typos that spot checks miss.
+    // PROPERTY TEST: check a rule that must hold for EVERY input, not single
+    // values. Catches table typos that spot checks miss.
     uint8_t last = 0;
     for (uint16_t mv = 3000; mv <= 4300; ++mv) {
         const uint8_t now = millivoltsToPercent(mv);

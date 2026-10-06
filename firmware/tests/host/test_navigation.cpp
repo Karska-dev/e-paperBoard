@@ -1,7 +1,7 @@
 // Tests for buttons, screens and the board's button table.
 #include <cstring>
 
-#include "hal/board.h"  // Plain data, no hardware headers, so it is testable too.
+#include "hal/board.h"  // Plain data, no hardware headers.
 #include "mini_test.h"
 #include "pure/buttons.h"
 #include "pure/screens.h"

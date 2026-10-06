@@ -1,27 +1,18 @@
 #!/usr/bin/env python3
-"""A tiny stand-in for the real server, for testing the firmware.
+"""Test server: a stand-in for the real one, standard library only.
 
-It speaks the contract in docs/SERVER_CONTRACT.md and nothing more: for each
-screen id it returns a 48,000-byte test image with an ETag, and it answers
-304 Not Modified when the device already has that image.
+Speaks docs/SERVER_CONTRACT.md and nothing more. Run it on a computer in the
+board's Wi-Fi network; it prints the line to put into secrets.h:
 
-Run it on a computer in the same Wi-Fi network as the board:
+    python3 tools/test_server.py        (Ctrl+C stops it)
 
-    python3 tools/test_server.py
+TECHNIQUE: a test image where each mark answers one question.
 
-It prints the address to put into firmware/include/secrets.h. It uses only
-Python's standard library, so there is nothing to install. Stop it with
-Ctrl+C.
-
-WHAT THE TEST IMAGE LOOKS LIKE (and why):
-  - a black frame around the edge: shows that all 800 x 480 pixels arrive
-    and that nothing is cut off or shifted
-  - a black square in the TOP-LEFT corner: shows the orientation. If it
-    appears in another corner, the image is mirrored or rotated
-  - a row of black squares in the middle, one per screen: home has 1, the
-    next screen 2, and so on. Flipping screens with the buttons is visible
-  - white background: if the panel shows the opposite (white marks on
-    black), the meaning of bit 1 and bit 0 is swapped somewhere
+    +----------------------------+   frame      all 800 x 480 pixels arrive
+    | #                          |   # corner   orientation (must be top-left)
+    |                            |   row of N   which screen (home = 1, next = 2...)
+    |   [] [] []                 |   white      bit 1 = white is not swapped
+    +----------------------------+
 """
 
 import argparse
@@ -35,18 +26,17 @@ ROW_BYTES = WIDTH // 8
 # Same ids, same order, as kScreenIds in firmware/src/pure/screens.h.
 SCREEN_IDS = ["home", "time-left", "year-dots", "night-sky", "family-week", "weather", "word"]
 
-# How long the device should sleep after a successful request. Short, so a
-# timer wake (and the 304 answer that follows) can be watched without waiting.
+# Sleep time sent to the device. Short, so a timer wake (and its 304) can be
+# watched without waiting.
 NEXT_WAKE_SECONDS = 120
 
 
 def fill_rect(frame, left, top, width, height):
-    """Paints a black rectangle into the frame.
+    """Paints a black rectangle.
 
-    The frame is a flat array of bytes, one bit per pixel, most significant
-    bit first: pixel x of row y lives in byte (y * 100 + x // 8), at bit
-    (7 - x % 8). Bit 1 is white, so painting black means CLEARING the bit:
-    AND with a mask that has a 0 only at that position.
+    TECHNIQUE: bit mask. Pixel (x, y) is bit (7 - x % 8) of byte
+    (y * 100 + x // 8). Bit 1 is white, so black means CLEARING the bit:
+    AND with a mask that is 0 only there.
     """
     for y in range(top, top + height):
         for x in range(left, left + width):
@@ -71,8 +61,8 @@ def make_frame(screen_index):
     return bytes(frame)
 
 
-# Built once at start-up. The ETag changes only when the image would change;
-# here that is never, so every repeated request for a screen gets a 304.
+# Built once. An ETag changes only when its image does; here never, so every
+# repeated request gets a 304.
 FRAMES = {name: make_frame(index) for index, name in enumerate(SCREEN_IDS)}
 ETAGS = {name: '"%s-test-1"' % name for name in SCREEN_IDS}
 
@@ -106,8 +96,8 @@ class Handler(BaseHTTPRequestHandler):
         etag = ETAGS[screen]
         unchanged = self.headers.get("If-None-Match") == etag
 
-        # send_response() also adds the Date header, which the device uses
-        # to set its clock.
+        # send_response() also adds the Date header: the device sets its
+        # clock from it.
         self.send_response(304 if unchanged else 200)
         self.send_header("ETag", etag)
         self.send_header("X-Next-Wake", str(NEXT_WAKE_SECONDS))
@@ -125,11 +115,10 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def local_address():
-    """Finds this computer's address in the local network.
+    """This computer's address in the local network.
 
-    Trick: "connecting" a UDP socket sends nothing, but it makes the operating
-    system choose the network interface it would use, and that interface's
-    address can then be read back.
+    TRICK: "connecting" a UDP socket sends nothing, but makes the system
+    pick the interface it would use; its address is then read back.
     """
     probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
@@ -146,8 +135,8 @@ def main():
     parser.add_argument("--port", type=int, default=8080)
     args = parser.parse_args()
 
-    # "0.0.0.0" means: accept connections on every network interface, not
-    # only from this computer itself.
+    # "0.0.0.0": accept connections on every interface, not only from this
+    # computer.
     server = HTTPServer(("0.0.0.0", args.port), Handler)
     print("Test server running. Put this into firmware/include/secrets.h:")
     print('    #define EPB_SERVER_URL "http://%s:%d"' % (local_address(), args.port))

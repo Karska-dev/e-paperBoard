@@ -1,25 +1,19 @@
 # Flash layout for the 16 MB flash of the XIAO ESP32-S3 Plus.
 #
-# A partition table divides the flash chip into named regions, the way a disk
-# is divided into partitions. The bootloader reads it to find the firmware.
+# PATTERN: A/B firmware slots (safe over-the-air updates). An update is
+# written into the slot that is NOT running; only when it is complete does
+# `otadata` flip to "boot the other slot". A failed update leaves the old
+# firmware intact. v0.1 has no OTA yet, but the layout must exist from the
+# first flash: changing it later means re-flashing over USB.
 #
-# PATTERN: A/B firmware slots (how over-the-air updates stay safe).
-# There are TWO firmware regions, app0 and app1. An update is written into
-# the slot that is NOT running. Only after it is complete and verified does
-# the small `otadata` region get flipped to say "boot the other slot". If
-# power fails mid-update, or the new firmware does not start, the old one is
-# still intact in its slot. v0.1 does not do OTA yet, but the layout must
-# exist from the first flash: changing it later means re-flashing over USB.
+#   0x009000  nvs        20 kB   settings (Wi-Fi, server address)
+#   0x00E000  otadata     8 kB   which app slot to boot
+#   0x010000  app0        3 MB   firmware slot A
+#   0x310000  app1        3 MB   firmware slot B
+#   0x610000  ffat      9.9 MB   reserved: offline cache (about 200 screens)
+#   0xFF0000  coredump   64 kB   crash dump; ends at 16 MB
 #
-#   nvs       settings: Wi-Fi credentials, server address (key-value store)
-#   otadata   which app slot to boot
-#   app0/app1 two firmware slots, 3 MB each
-#   ffat      FAT filesystem, reserved for the offline screen cache
-#             (9.875 MB holds about 200 screens of 48 kB)
-#   coredump  crash dump storage, for debugging a device that reset itself
-#
-# Offsets must be gap-free and the last partition must end at 0x1000000
-# (16 MB). App partitions must start on a 64 kB (0x10000) boundary.
+# No gaps allowed. App partitions start on a 64 kB (0x10000) boundary.
 #
 # Name,     Type, SubType,  Offset,   Size
 nvs,        data, nvs,      0x9000,   0x5000

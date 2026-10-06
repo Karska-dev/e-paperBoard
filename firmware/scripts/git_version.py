@@ -1,21 +1,16 @@
 """Pre-build step: write the firmware version into include/fw_version.h.
 
-PATTERN: single source of truth for the version.
-The version is not typed into the code by hand (where it would be forgotten).
-It is derived from git at build time:
+PATTERN: single source of truth. The version is derived from git, never
+typed by hand, so every binary names the exact source it was built from:
 
-    v0.1.0                  built exactly from the tag v0.1.0
-    v0.1.0-3-g1a2b3c4       3 commits after v0.1.0, at commit 1a2b3c4
-    v0.1.0-3-g1a2b3c4-dirty ...with uncommitted changes on top
-    1a2b3c4                 no tag exists yet
-    0.0.0-dev               not a git checkout at all
+    v0.1.0                    built from the tag v0.1.0
+    v0.1.0-3-g1a2b3c4         3 commits after it, at commit 1a2b3c4
+    v0.1.0-3-g1a2b3c4-dirty   ...plus uncommitted changes
+    1a2b3c4                   no tag yet
+    0.0.0-dev                 not a git checkout
 
-So every binary can be traced back to the exact source it was built from,
-and the device reports that string to the server on every request.
-
-PlatformIO runs this file because platformio.ini lists it under
-`extra_scripts`. `Import("env")` is how such a script gets access to the
-build environment.
+platformio.ini lists this file under `extra_scripts`; `Import("env")` gives
+it the build environment.
 """
 
 import os
@@ -46,12 +41,10 @@ content = (
     '#define FW_VERSION "%s"\n' % version
 )
 
-# Only touch the file when the version actually changed. The build system
-# recompiles everything that includes a header whose timestamp is newer than
-# the last build, so rewriting identical content would force a needless
-# recompile every time. (This is also why the version lives in a header
-# included by one file, and not in a -D compiler flag: a changed flag
-# recompiles the entire project, libraries included.)
+# PATTERN: conditional write. Rewriting identical content would change the
+# file's timestamp and force a needless recompile. (Also why the version is
+# a header included by one file, not a -D flag: a changed flag recompiles
+# everything, libraries included.)
 try:
     with open(header, "r", encoding="utf-8") as f:
         unchanged = f.read() == content

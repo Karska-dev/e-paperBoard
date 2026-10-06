@@ -1,15 +1,10 @@
 // Fake adapters for testing the wake cycle on a laptop.
 //
-// PATTERN: test doubles (fakes).
-// Each class here implements one of the interfaces from src/app/ports.h, the
-// same interfaces the real hardware adapters implement. A fake does two
-// things:
-//   - it lets the test SCRIPT the outside world ("Wi-Fi fails", "the server
-//     answers 304"), through public fields that are set before the run;
-//   - it RECORDS what the code under test did to it ("the display was drawn
-//     once", "this URL was requested"), in public fields that are checked
-//     after the run.
-// No mocking library is involved: a fake is an ordinary small class.
+// PATTERN: test doubles (fakes). Each class implements a port from
+// app/ports.h, as the real adapters do. A fake lets the test SCRIPT the
+// outside world through fields set before the run ("Wi-Fi fails"), and it
+// RECORDS what was done to it in fields checked afterwards ("drawn once").
+// No mocking library: a fake is an ordinary small class.
 #pragma once
 
 #include <cstring>

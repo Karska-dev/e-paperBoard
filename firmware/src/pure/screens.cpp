@@ -7,7 +7,7 @@ uint8_t navigate(uint8_t current, NavAction action, uint8_t count) {
         return 0;
     }
     if (current >= count) {
-        current = kHomeScreen;  // Defensive: treat garbage as "at Home".
+        current = kHomeScreen;  // Garbage in: treat as Home.
     }
     switch (action) {
         case NavAction::Next:

@@ -21,11 +21,10 @@ const char* wakeReasonFor(const WakeInfo& wake, NavAction action) {
     return wake.cause == WakeCause::PowerOn ? "boot" : "timer";
 }
 
-// Every failure path ends here, so the bookkeeping exists exactly once.
-// (PATTERN: single exit helper. Three places can fail; without this helper
-// each would have to remember to bump the counter and plan the backoff.)
+// PATTERN: single exit helper. Every failure path ends here, so the counter
+// and the backoff are handled in exactly one place.
 CycleResult finishFailed(RtcState state, const CycleConfig& config, const char* reason) {
-    if (state.consecutiveFailures < UINT8_MAX) {  // Saturate: never wrap back to 0.
+    if (state.consecutiveFailures < UINT8_MAX) {  // Saturate: never wrap to 0.
         ++state.consecutiveFailures;
     }
     const uint32_t sleepSeconds = planSleepSeconds(false, state.consecutiveFailures, 0, config.sleep);
@@ -41,20 +40,16 @@ CycleResult runWakeCycle(const WakeInfo& wake, const RtcState& previous, const C
     RtcState state = previous;  // Work on a copy; the caller stores the result.
     ++state.wakeCount;
 
-    // --- 1. Which screen is wanted? --------------------------------------
-    // Navigation is relative to what is ON THE PANEL (shownScreen). It only
-    // becomes the new shownScreen once the image has really been drawn. If
-    // the download fails, the panel still shows the old screen and the state
-    // still says so: state and reality cannot drift apart.
+    // --- 1. Which screen is wanted? ---
+    // Navigation is relative to what is ON THE PANEL. shownScreen changes only
+    // after a successful draw, so state and panel cannot drift apart.
     const NavAction action = wake.cause == WakeCause::Button
                                  ? decodeWakeMask(wake.buttonMask, config.buttons, config.buttonCount)
                                  : NavAction::None;
     const uint8_t targetScreen = navigate(state.shownScreen, action, kScreenCount);
 
-    // --- 2. Battery --------------------------------------------------------
-    // Measured BEFORE Wi-Fi starts: the radio draws short bursts of a few
-    // hundred milliamps, which pull the battery voltage down and would make
-    // the reading look worse than it is.
+    // --- 2. Battery ---
+    // Before Wi-Fi: radio bursts pull the voltage down and would skew it.
     uint16_t samples[kBatterySampleCount];
     ports.battery.sample(samples, kBatterySampleCount);
     const uint16_t millivolts = adcRawToMillivolts(trimmedMean(samples, kBatterySampleCount, kBatteryTrimEachSide));
@@ -64,13 +59,12 @@ CycleResult runWakeCycle(const WakeInfo& wake, const RtcState& previous, const C
          wakeReasonFor(wake, action), screenId(targetScreen), static_cast<unsigned>(millivolts),
          static_cast<unsigned>(percent), state.lowBattery != 0 ? " LOW" : "");
 
-    // --- 3. Settings -------------------------------------------------------
-    Settings settings = {};  // Zero-filled: every string starts out empty.
+    // --- 3. Settings ---
+    Settings settings = {};  // Zero-filled: all strings empty.
     ports.settings.load(&settings);
     if (!settings.isComplete()) {
-        // Draw the notice only once. E-paper keeps its image without power,
-        // so redrawing the same text on every wake would cost energy and a
-        // screen flash for nothing.
+        // Only once: e-paper keeps its image without power, so redrawing the
+        // same text on every wake would cost energy and a flash for nothing.
         if (state.setupNoticeShown == 0) {
             ports.display.showNotice("Setup needed", "Wi-Fi and server address are not stored yet. See OPERATIONS.md.");
             state.setupNoticeShown = 1;
@@ -82,9 +76,8 @@ CycleResult runWakeCycle(const WakeInfo& wake, const RtcState& previous, const C
     }
     state.setupNoticeShown = 0;
 
-    // --- 4. Build the request, then join Wi-Fi -----------------------------
-    // Cheap checks first: if the URL cannot be built there is no point in
-    // spending a second or more of radio time on joining the network.
+    // --- 4. Build the request, then join Wi-Fi ---
+    // Cheap check first: no radio time if the URL cannot even be built.
     const ScreenRequest request = {
         screenId(targetScreen),      millivolts, percent, state.lowBattery != 0, config.firmwareVersion,
         wakeReasonFor(wake, action),
@@ -99,25 +92,19 @@ CycleResult runWakeCycle(const WakeInfo& wake, const RtcState& previous, const C
         return finishFailed(state, config, "Wi-Fi connect failed");
     }
 
-    // --- 5. Ask the server -------------------------------------------------
-    // PATTERN: conditional GET with an ETag (standard HTTP caching).
-    // An ETag is a short fingerprint the server attaches to a response. Next
-    // time we send it back in an `If-None-Match` header, which means: "I
-    // already have the version with this fingerprint; only send the body if
-    // yours is different." If nothing changed, the server answers 304 Not
-    // Modified with an empty body: 48 kB less to download and, far more
+    // --- 5. Ask the server ---
+    // PATTERN: conditional GET. An ETag is a fingerprint the server attaches to
+    // a response. Sending it back as If-None-Match means "send the body only
+    // if yours differs". Unchanged -> 304 with no body: no download and, more
     // important, no panel refresh.
-    //
-    // The ETag describes the image on the panel, so it is only sent when we
-    // are asking for that same screen again. After a button press we want a
-    // DIFFERENT screen, and a 304 would wrongly leave the old one up.
+    // The ETag belongs to the image on the panel, so it is sent only when we
+    // ask for that same screen. After a key press a 304 would be wrong.
     const bool sameScreenAsShown = state.hasFrame != 0 && targetScreen == state.shownScreen;
     const char* etagToSend = sameScreenAsShown ? state.etag : "";
     const FetchResult fetched = ports.client.fetch(url, etagToSend, frameBuffer, frameCapacity);
 
-    // --- 6. Radio off ------------------------------------------------------
-    // As early as possible, and BEFORE drawing: a panel refresh takes
-    // seconds, and there is no reason to keep the radio powered through it.
+    // --- 6. Radio off ---
+    // Before drawing: a refresh takes seconds and does not need the radio.
     ports.network.off();
 
     // The server's clock is in every response, even in a 304 or an error.
@@ -126,18 +113,18 @@ CycleResult runWakeCycle(const WakeInfo& wake, const RtcState& previous, const C
         ports.clock.set(epochSeconds);
     }
 
-    // --- 7. Act on the answer ----------------------------------------------
+    // --- 7. Act on the answer ---
     switch (fetched.status) {
         case FetchStatus::Ok: {
-            // The client only reports Ok for a body of exactly one frame;
-            // that size check is our whole "is this a valid image" test.
+            // Ok means exactly one frame arrived: the size check is the whole
+            // "is this a valid image" test.
             ports.display.showFrame(frameBuffer);
             const RefreshDecision refresh = decideRefresh(true, state.partialsSinceFull, kMaxPartialsBeforeFull);
             state.partialsSinceFull = refresh.partialsSinceFull;
             state.shownScreen = targetScreen;
             state.hasFrame = 1;
-            // Bounded copy, then force a terminating zero. Never trust that
-            // a string from outside is terminated.
+            // Bounded copy, then force the terminating zero: never trust that a
+            // string from outside is terminated.
             std::memcpy(state.etag, fetched.etag, sizeof(state.etag));
             state.etag[sizeof(state.etag) - 1] = '\0';
             logf("drew screen '%s'", screenId(targetScreen));
@@ -145,9 +132,8 @@ CycleResult runWakeCycle(const WakeInfo& wake, const RtcState& previous, const C
         }
         case FetchStatus::NotModified:
             if (etagToSend[0] == '\0') {
-                // We sent no ETag, so "not modified" makes no sense. Treat a
-                // confused server as a failure instead of pretending the
-                // panel is up to date.
+                // We sent no ETag, so 304 makes no sense. A confused server is a
+                // failure, not a reason to believe the panel is up to date.
                 return finishFailed(state, config, "server answered 304 to an unconditional request");
             }
             logf("screen unchanged (304), panel left alone");
@@ -160,7 +146,7 @@ CycleResult runWakeCycle(const WakeInfo& wake, const RtcState& previous, const C
             return finishFailed(state, config, "no response from the server");
     }
 
-    // --- 8. Plan the sleep -------------------------------------------------
+    // --- 8. Plan the sleep ---
     state.consecutiveFailures = 0;
     const uint32_t sleepSeconds = planSleepSeconds(true, 0, fetched.nextWakeSeconds, config.sleep);
     return {state, sleepSeconds};

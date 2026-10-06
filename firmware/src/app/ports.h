@@ -1,29 +1,18 @@
-// Ports: the interfaces through which the application reaches the outside
-// world (battery, display, Wi-Fi, server, settings, clock).
+// Ports: the interfaces through which the app reaches the outside world.
 //
-// PATTERN: ports and adapters (also called hexagonal architecture), built on
-// the dependency inversion principle.
+// PATTERN: ports and adapters, built on dependency inversion. The wake cycle
+// never calls analogRead() or WiFi.begin(). It calls the small interfaces
+// below ("ports"); hal/ and storage/ implement them ("adapters"); main.cpp
+// plugs them in. Both sides depend on an interface that the app owns:
 //
-// The application logic in wake_cycle.cpp never calls analogRead() or
-// WiFi.begin() directly. It calls the small abstract interfaces declared
-// here (the "ports"). The real implementations live in src/hal/ and
-// src/storage/ (the "adapters") and are plugged in by main.cpp.
+//   wake_cycle.cpp --uses--> INetwork <--implements-- hal/wifi_network.cpp
+//                                     <--implements-- tests/host/fakes.h
 //
-// "Dependency inversion" names the direction of the arrows: normally
-// high-level code depends on low-level code (app -> Wi-Fi library). Here
-// both depend on an interface that the HIGH-level code owns:
+// So the whole cycle runs on a laptop with fakes, and swapping a library
+// touches one adapter.
 //
-//     wake_cycle.cpp  --->  INetwork  <---  hal/wifi_network.cpp
-//
-// What that buys us:
-//   - The whole wake cycle runs on a laptop with fake adapters, so its logic
-//     is unit tested without a board (tests/host/test_wake_cycle.cpp).
-//   - Swapping the display library or the transport touches one adapter and
-//     nothing else.
-//
-// Each interface is as small as the application needs (the "interface
-// segregation" idea): one or two methods, named after what the app wants,
-// not after what the hardware offers.
+// PATTERN: interface segregation. Each port has one or two methods, named
+// after what the app wants, not after what the hardware offers.
 #pragma once
 
 #include <cstddef>
@@ -35,8 +24,8 @@ namespace epb {
 
 // ---------------------------------------------------------------- settings
 
-// Sizes follow the Wi-Fi standard: an SSID is at most 32 bytes, a WPA2
-// passphrase at most 63 characters. One extra byte each for the final zero.
+// Wi-Fi limits: SSID 32 bytes, WPA2 passphrase 63 characters, plus one byte
+// each for the final zero.
 struct Settings {
     char ssid[33];
     char password[65];
@@ -57,11 +46,9 @@ class ISettings {
 class IBatteryAdc {
   public:
     virtual ~IBatteryAdc() = default;
-    // Switches the measuring circuit on, takes `count` raw 12-bit readings
-    // into `out`, and switches the circuit off again. All the maths happens
-    // in pure/battery_math, so this stays a few lines of hardware access.
-    // (PATTERN: humble object. Code that is hard to test is made so simple
-    // that it hardly needs testing; everything interesting moves elsewhere.)
+    // Circuit on, `count` raw 12-bit readings into `out`, circuit off.
+    // PATTERN: humble object. Hard-to-test code is kept so simple that it
+    // hardly needs testing; the maths lives in pure/battery_math.
     virtual void sample(uint16_t* out, size_t count) = 0;
 };
 
@@ -70,11 +57,10 @@ class IBatteryAdc {
 class IDisplay {
   public:
     virtual ~IDisplay() = default;
-    // Shows a full-screen image (format: pure/frame.h) with a full refresh.
-    // Blocks for the few seconds the panel needs.
+    // Shows a full-screen image (pure/frame.h) with a full refresh. Blocks for
+    // the few seconds the panel needs.
     virtual void showFrame(const uint8_t* frameBits) = 0;
-    // Shows two lines of plain text. For states where no server image can
-    // exist yet, such as "not set up".
+    // Shows two lines of text, for states with no server image ("not set up").
     virtual void showNotice(const char* title, const char* detail) = 0;
 };
 
@@ -83,11 +69,10 @@ class IDisplay {
 class INetwork {
   public:
     virtual ~INetwork() = default;
-    // Joins Wi-Fi. `hint` is both input and output: a valid hint speeds up
-    // the connect, and after a successful connect it holds fresh values for
-    // next time. Returns false if the network could not be joined in time.
+    // Joins Wi-Fi. `hint` is input and output: a valid hint speeds up the
+    // connect, and a successful connect refreshes it. False on timeout.
     virtual bool connect(const Settings& settings, WifiHint* hint) = 0;
-    // Switches the radio off. Safe to call when not connected.
+    // Radio off. Safe to call when not connected.
     virtual void off() = 0;
 };
 
@@ -101,15 +86,13 @@ enum class FetchStatus : uint8_t {
     TransportError,  // No answer at all (connect failed, timeout, ...).
 };
 
-// PATTERN: result struct instead of exceptions.
-// Embedded C++ is normally built with exceptions switched off: they cost
-// flash space, and "what happens to the hardware if this throws halfway" is
-// hard to reason about. Functions return a plain struct that says what
-// happened, and the caller has to look at it.
+// PATTERN: result struct, no exceptions. Embedded C++ is built with
+// exceptions off (flash cost, unclear hardware state after a throw), so a
+// function returns what happened and the caller must look at it.
 struct FetchResult {
     FetchStatus status;
     int httpCode;              // 0 if no HTTP response arrived.
-    char etag[kEtagCapacity];  // "" if the server sent none (or it was too long).
+    char etag[kEtagCapacity];  // "" if none was sent, or it was too long.
     char date[32];             // Raw `Date` header, "" if absent.
     uint32_t nextWakeSeconds;  // From `X-Next-Wake`, 0 if absent.
 };
@@ -117,8 +100,8 @@ struct FetchResult {
 class IScreenClient {
   public:
     virtual ~IScreenClient() = default;
-    // GETs `url`. If `etag` is not empty it is sent as If-None-Match.
-    // On FetchStatus::Ok, exactly `frameCapacity` bytes are in `frameOut`.
+    // GETs `url`, sending `etag` as If-None-Match unless it is empty.
+    // On Ok, exactly `frameCapacity` bytes are in `frameOut`.
     virtual FetchResult fetch(const char* url, const char* etag, uint8_t* frameOut, size_t frameCapacity) = 0;
 };
 
@@ -127,7 +110,7 @@ class IScreenClient {
 class IWallClock {
   public:
     virtual ~IWallClock() = default;
-    // Sets the device's calendar clock (Unix time, UTC).
+    // Sets the calendar clock (Unix time, UTC).
     virtual void set(int64_t epochSeconds) = 0;
 };
 

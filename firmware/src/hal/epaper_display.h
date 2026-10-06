@@ -1,11 +1,9 @@
 // Adapter: the 7.5" e-paper panel, driven through the Seeed_GFX library.
 //
-// PATTERN: adapter (wrapper).
-// The application wants two things from a display: "show this frame" and
-// "show this notice". Seeed_GFX offers hundreds of functions. This class
-// translates the first into the second and is the ONLY file that includes
-// the library. If the project moves to Seeed_GFX2 or GxEPD2, this one file
-// is rewritten and nothing else changes.
+// PATTERN: adapter (wrapper). The app wants "show this frame" and "show this
+// notice"; the library offers hundreds of functions. This class translates,
+// and it is the ONLY file that includes the library, so moving to another
+// display library means rewriting this one file.
 #pragma once
 
 #include "app/ports.h"
