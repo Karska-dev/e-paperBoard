@@ -6,7 +6,7 @@ Building, flashing and testing: [OPERATIONS.md](OPERATIONS.md).
 
 ## Workflow
 
-Until v0.1 work goes straight to `main`. From v0.1 on, every change follows the same path:
+Up to v0.1.0 work went straight to `main`. Since then every change follows the same path:
 
 ```mermaid
 gitGraph

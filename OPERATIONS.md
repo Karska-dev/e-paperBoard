@@ -153,7 +153,7 @@ The test image, and what each mark proves:
 | On battery | On-off switch on, USB unplugged, press a key: same behaviour |
 | No settings | Erase the board, flash a build without `secrets.h`: "Setup needed" appears once |
 
-Write down what does not match. Those findings are the work list for v0.1.
+Write down what does not match, and open an issue for each finding.
 
 ## 6. Putting the repository on GitHub
 

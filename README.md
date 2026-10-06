@@ -16,7 +16,7 @@ The board does very little on purpose: the less time it spends awake, the longer
 
 **An educational project.** Every pattern and algorithm is named and explained where it is used, and indexed in [docs/PATTERNS.md](docs/PATTERNS.md). The source is meant to be read.
 
-> **Status: skeleton, before v0.1.** The firmware compiles, its logic is unit tested, and the whole wake cycle has run on the hardware, on USB and on battery. Details: [What is verified](#what-is-verified).
+> **Status: v0.1.0, a working skeleton.** The firmware compiles, its logic is unit tested, and the whole wake cycle has run on the hardware, on USB and on battery. Details: [What is verified](#what-is-verified).
 
 ## Hardware
 
@@ -136,7 +136,7 @@ pio device monitor
 - [x] Download and draw an image
 - [x] Wake by key; each key does what the layout says (home, next, prev)
 - [x] Run on battery with USB unplugged
-- [ ] Tag `v0.1.0`
+- [x] Tag `v0.1.0`
 
 **After v0.1** (each as an issue, a branch and a pull request)
 - Wi-Fi setup from the browser over USB (Improv Serial) and a setup portal

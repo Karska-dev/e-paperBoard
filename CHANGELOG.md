@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-10-05
+
+The first version: a firmware skeleton that runs the whole wake cycle on the hardware.
+
 ### Added
 
 - Firmware skeleton for the Seeed TRMNL 7.5" (OG) DIY Kit (XIAO ESP32-S3 Plus, 800 × 480 UC8179 panel).
